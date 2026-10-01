@@ -1,0 +1,1006 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Plague Defense</title>
+<style>
+:root{
+  --bg:#04060c;--panel:#0a0f1c;--line:#1b2640;--text:#d8e4ff;--dim:#7d8bab;
+  --accent:#5ee0ff;--virus:#ff2d55;--good:#3dffb0;--warn:#ffb347;--energy:#ffd84d;--mem:#f4f4ff;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--text);font:14px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif}
+button{font:inherit;color:inherit;background:#111a2e;border:1px solid var(--line);border-radius:6px;padding:6px 10px;cursor:pointer}
+button:hover:not(:disabled){border-color:var(--accent)}
+button:disabled{opacity:.4;cursor:not-allowed}
+button.on{background:#3a1420;border-color:var(--virus);color:#ffd0da}
+h1,h2,h3{margin:0;font-weight:600}
+#app{display:flex;flex-direction:column;height:100vh}
+#top{display:flex;gap:16px;align-items:center;padding:8px 14px;border-bottom:1px solid var(--line);flex-wrap:wrap;background:#060a14}
+#top .title{font-weight:700;letter-spacing:.08em;color:var(--accent);font-size:13px;text-transform:uppercase}
+.res{display:flex;align-items:center;gap:6px;font-variant-numeric:tabular-nums;font-size:13px}
+.res label{color:var(--dim)}
+.bar{width:100px;height:8px;background:#141c30;border-radius:4px;overflow:hidden;flex:none}
+.bar>i{display:block;height:100%;width:0}
+.spacer{flex:1}
+#main{flex:1;display:flex;min-height:0}
+#stage{flex:1;position:relative;min-width:0;overflow:hidden;touch-action:none}
+canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
+#panel{width:310px;flex:none;border-left:1px solid var(--line);background:var(--panel);overflow-y:auto;padding:14px}
+#panel h2{font-size:18px;display:flex;align-items:center;gap:8px}
+#panel h3{font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--dim);margin:16px 0 8px}
+#panel p{margin:6px 0;color:var(--dim);font-size:13px}
+.tag{font-size:10px;text-transform:uppercase;letter-spacing:.08em;padding:2px 6px;border-radius:4px;border:1px solid #5a2232;color:#ff9db0}
+.stat{display:grid;grid-template-columns:60px 1fr 40px;align-items:center;gap:8px;margin:5px 0;font-size:13px}
+.stat span{color:var(--dim)}.stat b{text-align:right;font-variant-numeric:tabular-nums;font-weight:500}
+.stat .bar{width:auto}
+.urow{display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid #121a2c;font-size:13px}
+.urow .nm{flex:1}
+.urow button{padding:3px 10px;font-size:12px}
+.dot{width:10px;height:10px;border-radius:50%;flex:none;box-shadow:0 0 8px currentColor}
+.bbtn{display:flex;width:100%;align-items:center;gap:8px;margin:6px 0;text-align:left;padding:8px 10px}
+.bbtn .k{font-size:11px;color:var(--dim);border:1px solid var(--line);border-radius:3px;padding:0 5px}
+.bbtn .nm{flex:1}
+.bbtn small{display:block;color:var(--dim);font-size:11px}
+.cost{font-size:12px;color:var(--energy);font-variant-numeric:tabular-nums;white-space:nowrap}
+.orow{display:grid;grid-template-columns:1fr 70px 40px;gap:8px;align-items:center;padding:5px 6px;border-radius:5px;cursor:pointer;font-size:13px}
+.orow:hover{background:#121b30}
+.orow .bar{width:auto}
+.orow b{text-align:right;font-weight:500;color:#ff8da3;font-variant-numeric:tabular-nums}
+#log{position:absolute;left:12px;bottom:12px;max-width:min(440px,70%);pointer-events:none;font-size:12.5px}
+#log div{background:rgba(6,10,20,.78);border-left:2px solid var(--accent);padding:4px 8px;margin-top:4px;border-radius:0 4px 4px 0;transition:opacity .5s}
+#banner{position:absolute;left:50%;top:14px;transform:translateX(-50%);max-width:min(520px,92%);background:rgba(10,14,28,.92);border:1px solid var(--line);border-radius:8px;padding:10px 16px;text-align:center;pointer-events:none;opacity:0;transition:opacity .4s}
+#banner.show{opacity:1}
+#banner h3{color:var(--warn);font-size:15px;margin-bottom:4px}
+#banner p{margin:0;font-size:13px}
+#hint{position:absolute;left:50%;bottom:14px;transform:translateX(-50%);background:#0d2230;border:1px solid var(--accent);color:var(--accent);padding:6px 14px;border-radius:20px;font-size:13px;display:none;pointer-events:none}
+#pausedTag{position:absolute;right:14px;top:14px;color:var(--warn);font-weight:700;letter-spacing:.15em;display:none}
+.overlay{position:fixed;inset:0;background:rgba(2,4,10,.9);display:flex;align-items:flex-start;justify-content:center;overflow-y:auto;padding:40px 16px;z-index:10}
+.overlay.hide{display:none}
+.box{max-width:1000px;width:100%}
+.menuhead{text-align:center;margin-bottom:28px}
+.menuhead h1{font-size:40px;letter-spacing:.12em;color:var(--accent);text-shadow:0 0 24px rgba(94,224,255,.5)}
+.menuhead p{color:var(--dim);margin-top:6px}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:14px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px;display:flex;flex-direction:column;gap:8px;cursor:pointer;transition:border-color .2s,transform .2s}
+.card:hover{border-color:var(--virus);transform:translateY(-2px)}
+.card h2{font-size:20px}
+.card .diff{font-size:11px;text-transform:uppercase;letter-spacing:.1em;font-weight:700}
+.card p{margin:0;font-size:13px;color:var(--dim)}
+.card .trait{color:var(--text)}
+.menufoot{text-align:center;margin-top:22px}
+.help{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:22px;max-width:620px;margin:0 auto}
+.help h2{color:var(--accent);margin-bottom:10px}
+.help h3{margin:18px 0 6px;font-size:14px;color:var(--warn)}
+.help ol,.help ul{padding-left:20px;margin:6px 0}.help li{margin:6px 0}
+.help .u{display:flex;gap:8px;font-size:13px;margin:6px 0}.help .u .dot{margin-top:4px}
+.endbox{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:28px;max-width:440px;margin:8vh auto 0;text-align:center}
+.endbox h1{font-size:28px;margin-bottom:8px}
+.endbox .stats{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:18px 0;text-align:left}
+.endbox .stats div{background:#0e1526;border-radius:6px;padding:8px 10px;font-size:13px}
+.endbox .stats b{display:block;font-size:18px}
+.endbox .btns{display:flex;gap:10px;justify-content:center}
+@media (max-width:860px){
+  #app{height:auto;min-height:100vh}
+  #main{flex-direction:column}
+  #stage{height:68vh;flex:none}
+  #panel{width:auto;border-left:0;border-top:1px solid var(--line)}
+  .bar{width:60px}
+}
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="top">
+    <span class="title">Plague Defense</span>
+    <span class="res" title="Spend Energy to build cells. It refills over time."><label>Energy</label><div class="bar"><i id="t-e" style="background:var(--energy)"></i></div><span id="t-ev"></span></span>
+    <span class="res" title="Fills as your cells kill virus. When full, Killer T cells unlock."><label>Memory</label><div class="bar"><i id="t-m" style="background:var(--mem)"></i></div><span id="t-mv"></span></span>
+    <span class="res" title="Average health of all organs. Below 30% you lose."><label>Body</label><div class="bar"><i id="t-h"></i></div><span id="t-hv"></span></span>
+    <span class="res"><label>Wave</label><span id="t-w"></span></span>
+    <span class="spacer"></span>
+    <button id="b-fever" title="Fever (F): your cells kill 30% faster and the virus grows slower. Drains Energy and slowly hurts every organ.">Fever</button>
+    <button id="b-pause" title="Pause (Space)">Pause</button>
+    <button id="b-speed" title="Game speed">1×</button>
+    <button id="b-help" title="How to play (H)">?</button>
+    <button id="b-menu">Menu</button>
+  </div>
+  <div id="main">
+    <div id="stage">
+      <canvas id="cv"></canvas>
+      <div id="banner"><h3 id="bn-t"></h3><p id="bn-p"></p></div>
+      <div id="hint"></div>
+      <div id="pausedTag">PAUSED</div>
+      <div id="log"></div>
+    </div>
+    <div id="panel"><div id="pbody"></div></div>
+  </div>
+</div>
+
+<div id="menu" class="overlay">
+  <div class="box">
+    <div class="menuhead">
+      <h1>PLAGUE DEFENSE</h1>
+      <p>Pick a disease. Send immune cells where the virus attacks. Survive every wave.</p>
+    </div>
+    <div class="cards" id="cards"></div>
+    <div class="menufoot"><button id="m-help">How to play</button></div>
+  </div>
+</div>
+
+<div id="helpov" class="overlay hide">
+  <div class="help">
+    <h2>How to play</h2>
+    <p><b>Goal:</b> survive every wave of virus, then clear what's left. You lose if the Brain, Heart or Lungs reach 0 health, or the whole body drops below 30%.</p>
+    <h3>The loop</h3>
+    <ol>
+      <li><b>Watch for the next wave.</b> The top bar and a pulsing ring on the map show which organ gets hit next, and when.</li>
+      <li><b>Build cells</b> in the <b>Bone Marrow</b>: click it and press a button, or use keys <b>1–3</b> from anywhere. Cells cost Energy, which refills over time.</li>
+      <li><b>Move cells</b>: <b>drag</b> from one organ to another to send every cell there. Or select an organ and press <b>Send</b> next to a cell type, then click where to go.</li>
+      <li>Cells fight on their own when they arrive. They die of old age, so keep the reinforcements coming.</li>
+    </ol>
+    <h3>Cells</h3>
+    <div id="helpUnits"></div>
+    <h3>Tips</h3>
+    <ul>
+      <li><b>Get there first.</b> Cells already waiting in an organ crush a wave as it lands. Late cells face a much bigger fight.</li>
+      <li><b>Send new cells to:</b> set this on the Bone Marrow so every new cell walks straight to that organ.</li>
+      <li><b>Memory</b> fills as you kill virus. When it's full you can build Killer T cells.</li>
+      <li><b>Fever (F)</b> helps in a crisis but drains Energy and hurts every organ. Turn it off afterwards.</li>
+      <li><b>Space</b> pauses. Use it to plan.</li>
+    </ul>
+    <p style="text-align:center;margin-top:20px"><button id="h-close">Got it</button></p>
+  </div>
+</div>
+
+<div id="endov" class="overlay hide">
+  <div class="endbox">
+    <h1 id="end-t"></h1>
+    <p id="end-p" style="color:var(--dim)"></p>
+    <div class="stats" id="end-s"></div>
+    <div class="btns"><button id="end-again">Play again</button><button id="end-menu">Choose disease</button></div>
+  </div>
+</div>
+
+<script>
+'use strict';
+// ---------- Data ----------
+const W = 1000, H = 720;
+
+const NODES = {
+  brain:  {name:'Brain',       x:500, y:62,  vital:true},
+  nose:   {name:'Nose',        x:500, y:165},
+  lungs:  {name:'Lungs',       x:450, y:290, vital:true},
+  heart:  {name:'Heart',       x:605, y:320, vital:true},
+  skin:   {name:'Skin',        x:795, y:360},
+  liver:  {name:'Liver',       x:425, y:450},
+  gut:    {name:'Gut',         x:590, y:540},
+  marrow: {name:'Bone Marrow', x:440, y:650, base:true},
+};
+const EDGES = [
+  ['brain','nose'],['nose','lungs'],['lungs','heart'],['lungs','liver'],['heart','skin'],['heart','liver'],
+  ['heart','gut'],['skin','gut'],['liver','gut'],['liver','marrow'],['gut','marrow'],
+];
+const ADJ = {}, LEN = {};
+for (const k in NODES) ADJ[k] = [];
+for (const [a,b] of EDGES) {
+  ADJ[a].push(b); ADJ[b].push(a);
+  LEN[a+'|'+b] = LEN[b+'|'+a] = Math.hypot(NODES[a].x-NODES[b].x, NODES[a].y-NODES[b].y);
+}
+const elen = (a,b) => LEN[a+'|'+b];
+const HOPS_TO_BRAIN = {brain:0};
+for (let q = ['brain']; q.length;) { const a = q.shift(); for (const b of ADJ[a]) if (!(b in HOPS_TO_BRAIN)) { HOPS_TO_BRAIN[b] = HOPS_TO_BRAIN[a] + 1; q.push(b); } }
+const VITAL = ['brain','heart','lungs'];
+const K = 150;             // most virus one organ can hold
+const MEMORY_NEEDED = 220; // virus killed to unlock Killer T
+
+const UT = {
+  neut:{name:'Neutrophil', color:'#6ee7ff', cost:15, build:0.8, life:25, speed:110, kill:1.5, size:3,   key:'1',
+        desc:'Cheap and fast, but dies quickly.'},
+  mac: {name:'Macrophage', color:'#b6f36b', cost:30, build:1.5, life:70, speed:50,  kill:1.3, size:5.5, key:'2',
+        desc:'Slow, but lasts a long time. Good for guarding an organ.'},
+  kt:  {name:'Killer T',   color:'#f4f4ff', cost:45, build:2.0, life:50, speed:80,  kill:5.0, size:4,   key:'3', locked:true,
+        desc:'The strongest killer. Unlocks when Memory is full.'},
+};
+
+// Each disease: waves hit `targets` in order (looping), growing by size[1] each wave.
+// `tropism` = which organs it can grow in, and how fast. One special trait each.
+const DISEASES = {
+  cold: { pressure:1.4,
+    name:'Common Cold', diff:'Easy', diffColor:'#3dffb0',
+    about:'Hits the nose over and over. Rarely goes deeper.',
+    trait:'Mild: does little damage.',
+    waves:7, targets:['nose'], size:[13,6],
+    tropism:{nose:1, lungs:0.3}, r:0.075, vir:0.7, spread:0.36,
+  },
+  chickenpox: { pressure:1.6,
+    name:'Chickenpox', diff:'Easy', diffColor:'#3dffb0',
+    about:'An itchy rash across the skin.',
+    trait:'Comes back as shingles: the last wave is three times bigger.',
+    waves:7, targets:['nose','skin','skin'], size:[12,6],
+    tropism:{nose:0.6, skin:1.1, lungs:0.3}, r:0.075, vir:0.7, spread:0.4,
+    lastWaveMul:3,
+  },
+  rota: { pressure:1.8,
+    name:'Rotavirus', diff:'Easy', diffColor:'#3dffb0',
+    about:'A stomach bug that camps in the gut.',
+    trait:'While the Gut is infected, Energy refills at half speed.',
+    waves:7, targets:['gut'], size:[13,6],
+    tropism:{gut:1.1, liver:0.3}, r:0.08, vir:0.8, spread:0.4,
+    drainsEnergy:true,
+  },
+  hepb: { pressure:2.0,
+    name:'Hepatitis B', diff:'Easy', diffColor:'#3dffb0',
+    about:'Slowly grinds down the liver.',
+    trait:'No organ heals while this virus is anywhere in the body.',
+    waves:8, targets:['liver','liver','gut'], size:[14,7],
+    tropism:{liver:1.2, gut:0.4, marrow:0.3}, r:0.08, vir:0.8, spread:0.5,
+    noHeal:true,
+  },
+  flu: { pressure:1.3,
+    name:'Influenza', diff:'Medium', diffColor:'#ffd84d',
+    about:'Attacks the nose and lungs. The lungs are vital.',
+    trait:'Mutates at wave 5: your Killer T cells stop recognizing it and Memory drops by half.',
+    waves:8, targets:['nose','lungs','nose','lungs','lungs'], size:[14,7],
+    tropism:{nose:0.8, lungs:1.2, heart:0.3, brain:0.15}, r:0.09, vir:0.8, spread:0.6,
+    forget:{wave:5, to:0.5, title:'The flu mutated!'},
+  },
+  measles: { pressure:1.4,
+    name:'Measles', diff:'Medium', diffColor:'#ffd84d',
+    about:'Hugely contagious. Lands in the airways and the skin.',
+    trait:'Immune amnesia: at wave 4 it erases your Memory completely, and your Killer T cells forget it.',
+    waves:8, targets:['nose','lungs','skin','nose'], size:[14,7],
+    tropism:{nose:0.9, lungs:1, skin:1, heart:0.2}, r:0.09, vir:0.8, spread:0.6,
+    forget:{wave:4, to:0, title:'Immune amnesia!'},
+  },
+  covid: { pressure:1.25,
+    name:'COVID-19', diff:'Medium', diffColor:'#ffd84d',
+    about:'Starts in the airways, then reaches the heart and gut.',
+    trait:'Spreads between organs twice as fast as other viruses.',
+    waves:8, targets:['nose','lungs','nose','heart','lungs'], size:[13,6],
+    tropism:{nose:0.8, lungs:1.1, heart:0.6, gut:0.5, brain:0.15}, r:0.085, vir:0.8, spread:1.2,
+  },
+  polio: { pressure:1.8,
+    name:'Polio', diff:'Hard', diffColor:'#ff8f4d',
+    about:'Enters through the gut, then attacks nerves and the brain.',
+    trait:'Weakens nerves: all your cells move 30% slower.',
+    waves:8, targets:['gut','gut','marrow','gut','brain'], size:[14,7],
+    tropism:{gut:1.1, marrow:0.6, liver:0.4, brain:0.8, nose:0.3}, r:0.09, vir:0.9, spread:0.6,
+    slowCells:true,
+  },
+  pox: { pressure:1.4,
+    name:'Smallpox', diff:'Hard', diffColor:'#ff8f4d',
+    about:'Strikes all over the body, the skin worst of all.',
+    trait:'Stealthy: you can’t see virus numbers or the next target until 1:00.',
+    waves:8, targets:['nose','skin','liver','gut','skin','lungs','skin','nose'], size:[14,7],
+    tropism:{nose:0.7, lungs:0.5, skin:1.3, liver:0.6, gut:0.5}, r:0.09, vir:1.0, spread:0.55,
+    hiddenUntil:60,
+  },
+  rabies: { pressure:1.2,
+    name:'Rabies', diff:'Hard', diffColor:'#ff8f4d',
+    about:'Enters through a bite in the skin.',
+    trait:'Climbs the nerves: it only ever spreads toward the Brain.',
+    waves:8, targets:['skin','skin','gut','skin','nose'], size:[14,7],
+    tropism:{skin:0.8, heart:0.6, lungs:0.6, nose:0.7, gut:0.6, brain:1.3}, r:0.09, vir:1.0, spread:0.8,
+    seeksBrain:true,
+  },
+  hiv: { pressure:1.13,
+    name:'HIV', diff:'Very hard', diffColor:'#ff2d55',
+    about:'Hides in the blood and bone marrow.',
+    trait:'Hunts your best defenders: Killer T cells die three times faster in infected organs.',
+    waves:8, targets:['marrow','gut','marrow','liver','heart'], size:[14,7],
+    tropism:{marrow:1, gut:0.8, liver:0.7, heart:0.5, brain:0.2}, r:0.09, vir:1.0, spread:0.6,
+    eats:'kt',
+  },
+  ebola: { pressure:1.5,
+    name:'Ebola', diff:'Very hard', diffColor:'#ff2d55',
+    about:'Enters through the skin and races for the liver and gut.',
+    trait:'Macrophages die three times faster in infected organs.',
+    waves:8, targets:['skin','liver','gut','skin','liver','heart','gut','liver'], size:[14,7],
+    tropism:{skin:0.7, liver:1.2, gut:0.9, heart:0.4, marrow:0.4}, r:0.09, vir:1.1, spread:0.6,
+    eats:'mac',
+  },
+};
+// `pressure` scales growth and wave size: the main difficulty knob.
+for (const k in DISEASES) {
+  const d = Object.assign(DISEASES[k], {interval:20, first:6}, DISEASES[k]);
+  d.r *= d.pressure; d.size = d.size.map(x => x*d.pressure);
+}
+
+// ---------- State ----------
+let G = null, seenHelp = false;
+const $ = s => document.querySelector(s);
+
+function newGame(did) {
+  const d = DISEASES[did];
+  G = {
+    did, d, t:0, energy:60, memory:0, fever:false, speed:1, paused:false, over:false,
+    units:[], virions:[], sparks:[], nodes:{}, uid:0, selected:null, dispatch:null, rally:null,
+    wave:0, nextWave:d.first, stats:{built:0, killed:0}, panelSig:'',
+  };
+  for (const k in NODES) G.nodes[k] = {V:0, hp:100, queue:[], buildT:0, seed:{}};
+  $('#log').innerHTML = '';
+  $('#menu').classList.add('hide');
+  $('#endov').classList.add('hide');
+  banner(d.name, `The first wave hits the ${NODES[d.targets[0]].name} in ${d.first} seconds.`);
+  if (!seenHelp) { seenHelp = true; openHelp(); }
+}
+
+// ---------- Helpers ----------
+const totalV = () => { let s = 0; for (const k in G.nodes) s += G.nodes[k].V; return s; };
+const hidden = () => G.d.hiddenUntil && G.t < G.d.hiddenUntil;
+const unitsAt = k => G.units.filter(u => !u.dead && u.node === k);
+const fmtTime = t => Math.floor(t/60) + ':' + String(Math.floor(t%60)).padStart(2,'0');
+const avgHp = () => { let s = 0, c = 0; for (const k in G.nodes) { s += G.nodes[k].hp; c++; } return s/c; };
+const hpColor = h => `hsl(${Math.max(0,Math.min(120,h*1.2))},90%,58%)`;
+const waveTarget = i => G.d.targets[i % G.d.targets.length];
+const waveSize = i => (G.d.size[0] + G.d.size[1]*i)*(G.d.lastWaveMul && i === G.d.waves - 1 ? G.d.lastWaveMul : 1);
+const ktUnlocked = () => G.memory >= 1;
+
+function findPath(a, b) {
+  if (a === b) return [a];
+  const dist = {}, prev = {}, Q = new Set(Object.keys(NODES));
+  for (const k of Q) dist[k] = Infinity;
+  dist[a] = 0;
+  while (Q.size) {
+    let u = null;
+    for (const k of Q) if (u === null || dist[k] < dist[u]) u = k;
+    if (dist[u] === Infinity) break;
+    Q.delete(u);
+    if (u === b) break;
+    for (const v of ADJ[u]) if (dist[u] + elen(u,v) < dist[v]) { dist[v] = dist[u] + elen(u,v); prev[v] = u; }
+  }
+  if (dist[b] === Infinity) return null;
+  const p = [b];
+  while (p[0] !== a) p.unshift(prev[p[0]]);
+  return p;
+}
+
+function spawn(type) {
+  const u = {id:++G.uid, type, node:'marrow', path:null, seg:0, prog:0, age:0, life:UT[type].life, ph:Math.random()*6.28};
+  G.units.push(u);
+  G.stats.built++;
+  if (G.rally && G.rally !== 'marrow') send([u], G.rally);
+}
+
+function send(list, target) {
+  let c = 0; const cache = {};
+  for (const u of list) {
+    if (u.dead || !u.node || u.node === target) continue;
+    const p = cache[u.node] || (cache[u.node] = findPath(u.node, target));
+    if (!p) continue;
+    u.path = p; u.seg = 0; u.prog = 0; u.node = null;
+    c++;
+  }
+  return c;
+}
+
+function buildBlock(type) {
+  const t = UT[type], q = G.nodes.marrow.queue;
+  if (t.locked && !ktUnlocked()) return 'Unlocks when Memory is full';
+  if (q.length >= 6) return 'Queue full';
+  if (G.energy < t.cost) return 'Not enough Energy';
+  return null;
+}
+function build(type) {
+  if (!G || G.over || buildBlock(type)) return false;
+  G.energy -= UT[type].cost;
+  G.nodes.marrow.queue.push(type);
+  return true;
+}
+
+function toggleFever() {
+  if (!G || G.over) return;
+  if (G.fever) { G.fever = false; log('Fever down.'); return; }
+  if (G.energy < 10) { log('Not enough Energy for a fever.'); return; }
+  G.fever = true; log('Fever up.');
+}
+
+// ---------- Messages ----------
+let bannerTimer = null;
+function banner(t, p) {
+  $('#bn-t').textContent = t; $('#bn-p').textContent = p;
+  $('#banner').classList.add('show');
+  clearTimeout(bannerTimer);
+  bannerTimer = setTimeout(() => $('#banner').classList.remove('show'), 5000);
+}
+function log(msg) {
+  const el = document.createElement('div');
+  el.textContent = (G ? fmtTime(G.t) + '  ' : '') + msg;
+  el.dataset.born = performance.now();
+  const L = $('#log');
+  L.appendChild(el);
+  while (L.children.length > 5) L.removeChild(L.firstChild);
+}
+
+// ---------- Simulation ----------
+function launchWave() {
+  const d = G.d, i = G.wave, k = waveTarget(i), amt = waveSize(i), P = NODES[k];
+  // a swarm of virions flies in from outside the body
+  const n = Math.min(18, Math.ceil(amt/3));
+  for (let j = 0; j < n; j++) {
+    const a = Math.random()*Math.PI*2;
+    G.virions.push({x0:P.x + Math.cos(a)*260, y0:P.y + Math.sin(a)*260, to:k, prog:-j*0.03, amt:amt/n, wave:true});
+  }
+  G.wave++;
+  G.nextWave = G.t + d.interval;
+  log(hidden() ? `Wave ${G.wave} of ${d.waves} has landed somewhere.` : `Wave ${G.wave} of ${d.waves} is hitting the ${P.name}.`);
+  if (d.forget && G.wave === d.forget.wave) {
+    let lost = 0;
+    for (const u of G.units) if (u.type === 'kt') { u.dead = true; lost++; }
+    G.memory = Math.min(G.memory, d.forget.to);
+    banner(d.forget.title, `${lost ? lost + ' Killer T cells forgot the virus. ' : ''}Memory dropped to ${Math.round(G.memory*100)}%. Kill more virus to unlock Killer T again.`);
+  }
+}
+
+function step(dt) {
+  const d = G.d, N = G.nodes;
+  G.t += dt;
+  if (G.wave < d.waves && G.t >= G.nextWave) launchWave();
+
+  G.energy = Math.min(150, G.energy + 5*(d.drainsEnergy && N.gut.V > 5 ? 0.5 : 1)*dt);
+  if (G.fever) {
+    G.energy -= 3*dt;
+    if (G.energy <= 0) { G.energy = 0; G.fever = false; log('Fever broke: out of Energy.'); }
+  }
+
+  // build queue
+  const m = N.marrow;
+  if (m.queue.length) {
+    m.buildT += dt*(0.4 + 0.6*m.hp/100);
+    if (m.buildT >= UT[m.queue[0]].build) { m.buildT = 0; spawn(m.queue.shift()); }
+  } else m.buildT = 0;
+
+  // units
+  for (const u of G.units) {
+    if (u.dead) continue;
+    u.age += dt;
+    if (d.eats === u.type && u.node && N[u.node].V > 5) u.age += 2*dt;
+    if (u.age >= u.life) { u.dead = true; continue; }
+    if (!u.node) {
+      const a = u.path[u.seg], b = u.path[u.seg+1];
+      u.prog += UT[u.type].speed*(d.slowCells ? 0.7 : 1)*dt/elen(a,b);
+      if (u.prog >= 1) {
+        u.seg++; u.prog = 0;
+        if (u.seg >= u.path.length-1) { u.node = b; u.path = null; }
+      }
+    }
+  }
+  G.units = G.units.filter(u => !u.dead);
+
+  const anyVirus = totalV() > 0;
+  const at = {}; for (const k in N) at[k] = [];
+  for (const u of G.units) if (u.node) at[u.node].push(u);
+
+  for (const k in N) {
+    const n = N[k], tro = d.tropism[k] || 0;
+    let kill = 0;
+    for (const u of at[k]) kill += UT[u.type].kill;
+    if (G.fever) kill *= 1.3;
+    let g = 0;
+    if (n.V > 0) {
+      g = tro > 0 ? d.r*tro*n.V*(1 - n.V/K) : -0.1*n.V;
+      if (G.fever && g > 0) g *= 0.7;
+    }
+    const eff = n.V > 0 ? kill*Math.min(1, 0.3 + n.V/30) : 0;
+    const before = n.V;
+    n.V = Math.max(0, n.V + (g - eff)*dt);
+    if (n.V < 0.4) n.V = 0;
+    const killed = Math.min(before, eff*dt);
+    if (killed > 0) {
+      G.stats.killed += killed;
+      if (G.memory < 1) {
+        G.memory = Math.min(1, G.memory + killed/MEMORY_NEEDED);
+        if (G.memory >= 1) banner('Killer T cells unlocked', 'Your immune system has learned this virus. Press 3 to build Killer T cells.');
+      }
+      if (Math.random() < killed*1.5 && G.sparks.length < 300) {
+        const a = Math.random()*6.28, r = 8 + Math.random()*22;
+        G.sparks.push({x:NODES[k].x + Math.cos(a)*r, y:NODES[k].y + Math.sin(a)*r, life:0.45, max:0.45});
+      }
+    }
+
+    let dmg = d.vir*(n.V/K)*2;
+    if (G.fever) dmg += 0.15;
+    n.hp -= dmg*dt;
+    if (n.V === 0 && !(d.noHeal && anyVirus)) n.hp += 0.4*dt;
+    n.hp = Math.max(0, Math.min(100, n.hp));
+
+    // spread to neighbouring organs
+    if (n.V > 10) {
+      for (const nb of ADJ[k]) {
+        const tn = d.tropism[nb] || 0;
+        if (tn <= 0 || (d.seeksBrain && HOPS_TO_BRAIN[nb] >= HOPS_TO_BRAIN[k])) continue;
+        n.seed[nb] = (n.seed[nb] || 0) + d.spread*(n.V/K)*tn*0.5*dt;
+        if (n.seed[nb] >= 1) { n.seed[nb] -= 1; G.virions.push({from:k, to:nb, prog:0, amt:4}); }
+      }
+    }
+  }
+
+  // virions in flight
+  for (const v of G.virions) {
+    if (v.wave) v.prog += dt*0.9;
+    else v.prog += 80*dt/elen(v.from, v.to);
+    if (v.prog >= 1) { N[v.to].V += v.amt; v.done = true; }
+  }
+  G.virions = G.virions.filter(v => !v.done);
+  for (const s of G.sparks) s.life -= dt;
+  G.sparks = G.sparks.filter(s => s.life > 0);
+
+  for (const k of VITAL) if (N[k].hp <= 0) return endGame(false, `The ${NODES[k].name} failed.`);
+  if (avgHp() < 30) return endGame(false, 'The whole body is too weak to go on.');
+  if (G.wave >= d.waves && totalV() === 0 && G.virions.length === 0) return endGame(true, `You survived all ${d.waves} waves of ${d.name}.`);
+}
+
+function endGame(win, reason) {
+  G.over = true; G.dispatch = null;
+  $('#end-t').textContent = win ? 'You win!' : 'The body has fallen';
+  $('#end-t').style.color = win ? 'var(--good)' : 'var(--virus)';
+  $('#end-p').textContent = reason;
+  $('#end-s').innerHTML = [
+    ['Time', fmtTime(G.t)], ['Body health', Math.round(avgHp()) + '%'],
+    ['Waves', `${G.wave} / ${G.d.waves}`], ['Cells built', G.stats.built],
+  ].map(([a,b]) => `<div>${a}<b>${b}</b></div>`).join('');
+  setTimeout(() => $('#endov').classList.remove('hide'), 700);
+}
+
+// ---------- Rendering ----------
+const cv = $('#cv'), ctx = cv.getContext('2d');
+let scale = 1, offX = 0, offY = 0, dpr = 1;
+function resize() {
+  const r = $('#stage').getBoundingClientRect();
+  dpr = window.devicePixelRatio || 1;
+  cv.width = Math.round(r.width*dpr); cv.height = Math.round(r.height*dpr);
+  scale = Math.min(r.width/W, r.height/H);
+  offX = (r.width - W*scale)/2; offY = (r.height - H*scale)/2;
+}
+new ResizeObserver(resize).observe($('#stage'));
+
+const BG_CELLS = Array.from({length:46}, () => ({x:Math.random()*W, y:Math.random()*H, r:10 + Math.random()*40, a:Math.random()*0.04}));
+let mouse = {x:-1, y:-1}, hoverNode = null, drag = null;
+
+function capsule(x1,y1,x2,y2,r) {
+  const a = Math.atan2(y2-y1, x2-x1);
+  ctx.moveTo(x1 + r*Math.cos(a+Math.PI/2), y1 + r*Math.sin(a+Math.PI/2));
+  ctx.arc(x1, y1, r, a+Math.PI/2, a+Math.PI*1.5);
+  ctx.arc(x2, y2, r, a-Math.PI/2, a+Math.PI/2);
+  ctx.closePath();
+}
+function drawBody() {
+  ctx.fillStyle = 'rgba(70,120,255,0.05)';
+  ctx.beginPath();
+  ctx.ellipse(500, 108, 82, 92, 0, 0, Math.PI*2);
+  ctx.moveTo(462,180); ctx.lineTo(538,180); ctx.lineTo(538,240); ctx.lineTo(462,240); ctx.closePath();
+  capsule(380, 290, 620, 290, 75);
+  ctx.moveTo(310,250); ctx.lineTo(690,250); ctx.lineTo(670,590); ctx.lineTo(330,590); ctx.closePath();
+  capsule(330, 260, 175, 520, 36);
+  capsule(670, 260, 860, 500, 36);
+  capsule(430, 570, 420, 712, 48);
+  capsule(575, 570, 590, 712, 48);
+  ctx.fill('nonzero');
+}
+
+function nodeAt(x, y) {
+  for (const k in NODES) if (Math.hypot(NODES[k].x - x, NODES[k].y - y) < 36) return k;
+  return null;
+}
+function unitPos(u) {
+  if (u.node) {
+    const n = NODES[u.node];
+    const ring = 40 + (u.id % 3)*7;
+    const a = u.ph + G.t*(0.35 + (u.id % 5)*0.06)*((u.id & 1) ? 1 : -1);
+    return [n.x + Math.cos(a)*ring, n.y + Math.sin(a)*ring];
+  }
+  const a = NODES[u.path[u.seg]], b = NODES[u.path[u.seg+1]];
+  const wob = Math.sin(u.ph + G.t*4)*3;
+  const dx = b.x - a.x, dy = b.y - a.y, L = Math.hypot(dx, dy);
+  return [a.x + dx*u.prog - dy/L*wob, a.y + dy*u.prog + dx/L*wob];
+}
+
+function draw() {
+  ctx.setTransform(1,0,0,1,0,0);
+  const bg = ctx.createRadialGradient(cv.width/2, cv.height/2, 0, cv.width/2, cv.height/2, Math.max(cv.width, cv.height)*0.7);
+  bg.addColorStop(0, '#08101f'); bg.addColorStop(1, '#020309');
+  ctx.fillStyle = bg; ctx.fillRect(0, 0, cv.width, cv.height);
+  if (!G) return;
+  ctx.setTransform(dpr*scale, 0, 0, dpr*scale, dpr*offX, dpr*offY);
+  const T = G.t, N = G.nodes, hid = hidden();
+
+  for (const c of BG_CELLS) {
+    ctx.strokeStyle = `rgba(110,160,255,${c.a})`; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.arc(c.x, c.y, c.r, 0, Math.PI*2); ctx.stroke();
+  }
+  drawBody();
+
+  // vessels
+  for (const [a,b] of EDGES) {
+    const A = NODES[a], B = NODES[b], L = elen(a,b);
+    ctx.lineCap = 'round';
+    ctx.strokeStyle = 'rgba(255,60,80,0.10)'; ctx.lineWidth = 9;
+    ctx.beginPath(); ctx.moveTo(A.x, A.y); ctx.lineTo(B.x, B.y); ctx.stroke();
+    ctx.strokeStyle = 'rgba(255,80,100,0.35)'; ctx.lineWidth = 1.6;
+    ctx.beginPath(); ctx.moveTo(A.x, A.y); ctx.lineTo(B.x, B.y); ctx.stroke();
+    ctx.fillStyle = 'rgba(255,110,120,0.5)';
+    const cnt = Math.max(2, Math.round(L/60));
+    for (let i = 0; i < cnt; i++) {
+      const p = ((T*40/L) + i/cnt) % 1;
+      ctx.beginPath(); ctx.arc(A.x + (B.x-A.x)*p, A.y + (B.y-A.y)*p, 1.3, 0, Math.PI*2); ctx.fill();
+    }
+  }
+
+  // rally line, drag line, dispatch line
+  if (G.rally) {
+    const A = NODES.marrow, B = NODES[G.rally];
+    ctx.strokeStyle = 'rgba(94,224,255,0.45)'; ctx.setLineDash([3,6]); ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(A.x, A.y); ctx.lineTo(B.x, B.y); ctx.stroke(); ctx.setLineDash([]);
+  }
+  const lineFrom = drag && drag.moved ? drag.from : (G.dispatch ? G.dispatch.from : null);
+  if (lineFrom && mouse.x >= 0) {
+    const A = NODES[lineFrom], tgt = hoverNode ? NODES[hoverNode] : mouse;
+    ctx.strokeStyle = 'rgba(94,224,255,0.85)'; ctx.setLineDash([8,6]); ctx.lineWidth = 2.5;
+    ctx.beginPath(); ctx.moveTo(A.x, A.y); ctx.lineTo(tgt.x, tgt.y); ctx.stroke(); ctx.setLineDash([]);
+  }
+
+  // incoming wave warning
+  if (G.wave < G.d.waves && !hid) {
+    const left = G.nextWave - T, P = NODES[waveTarget(G.wave)];
+    if (left < 10) {
+      const pulse = 0.5 + 0.5*Math.sin(T*8);
+      ctx.strokeStyle = `rgba(255,45,85,${0.35 + 0.45*pulse})`; ctx.lineWidth = 2.5; ctx.setLineDash([10,6]);
+      ctx.beginPath(); ctx.arc(P.x, P.y, 62 + pulse*4, -T, -T + Math.PI*2); ctx.stroke(); ctx.setLineDash([]);
+      ctx.font = '700 13px system-ui,sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillStyle = '#ff6b88';
+      ctx.fillText(`WAVE IN ${Math.ceil(left)}`, P.x, P.y - 74);
+    }
+  }
+
+  // organs
+  for (const k in NODES) {
+    const P = NODES[k], n = N[k];
+    const inf = Math.min(1, n.V/K)*(hid ? 0.15 : 1);
+    const glowR = 58 + inf*20;
+    const g = ctx.createRadialGradient(P.x, P.y, 6, P.x, P.y, glowR);
+    g.addColorStop(0, `rgba(${Math.round(60 + 195*inf)},${Math.round(140 - 100*inf)},${Math.round(255 - 170*inf)},${0.28 + 0.2*inf})`);
+    g.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(P.x, P.y, glowR, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = '#0a1324';
+    ctx.beginPath(); ctx.arc(P.x, P.y, 24, 0, Math.PI*2); ctx.fill();
+    ctx.strokeStyle = P.vital ? 'rgba(255,157,176,0.55)' : 'rgba(120,170,255,0.4)'; ctx.lineWidth = 1.5;
+    ctx.stroke();
+    ctx.strokeStyle = hpColor(n.hp); ctx.lineWidth = 3.5; ctx.lineCap = 'butt';
+    ctx.beginPath(); ctx.arc(P.x, P.y, 29, -Math.PI/2, -Math.PI/2 + Math.PI*2*n.hp/100); ctx.stroke();
+    if (n.queue.length) {
+      ctx.strokeStyle = UT[n.queue[0]].color; ctx.lineWidth = 2.5;
+      ctx.beginPath(); ctx.arc(P.x, P.y, 15, -Math.PI/2, -Math.PI/2 + Math.PI*2*Math.min(1, n.buildT/UT[n.queue[0]].build)); ctx.stroke();
+    }
+    if (G.selected === k) {
+      ctx.strokeStyle = 'rgba(255,255,255,0.85)'; ctx.lineWidth = 1.5; ctx.setLineDash([5,4]);
+      ctx.beginPath(); ctx.arc(P.x, P.y, 36, -T, -T + Math.PI*2); ctx.stroke(); ctx.setLineDash([]);
+    } else if (hoverNode === k) {
+      ctx.strokeStyle = 'rgba(94,224,255,0.5)'; ctx.lineWidth = 1.2;
+      ctx.beginPath(); ctx.arc(P.x, P.y, 36, 0, Math.PI*2); ctx.stroke();
+    }
+  }
+
+  ctx.globalCompositeOperation = 'lighter';
+  for (const k in NODES) {
+    const P = NODES[k], n = N[k];
+    if (n.V <= 0) continue;
+    const cnt = Math.min(44, Math.ceil(n.V/3));
+    ctx.fillStyle = hid ? 'rgba(255,45,85,0.22)' : 'rgba(255,45,85,0.9)';
+    ctx.strokeStyle = hid ? 'rgba(255,45,85,0.15)' : 'rgba(255,90,120,0.6)';
+    ctx.lineWidth = 0.8;
+    for (let i = 0; i < cnt; i++) {
+      const a = i*2.399 + T*(0.25 + (i%4)*0.05)*((i&1) ? 1 : -1);
+      const r = 6 + ((i*7) % 26);
+      const x = P.x + Math.cos(a)*r, y = P.y + Math.sin(a)*r;
+      ctx.beginPath(); ctx.arc(x, y, 2.2, 0, Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.moveTo(x-4, y); ctx.lineTo(x+4, y); ctx.moveTo(x, y-4); ctx.lineTo(x, y+4); ctx.stroke();
+    }
+  }
+  for (const v of G.virions) {
+    if (v.prog < 0) continue;
+    let x, y;
+    if (v.wave) { const P = NODES[v.to]; x = v.x0 + (P.x - v.x0)*v.prog; y = v.y0 + (P.y - v.y0)*v.prog; }
+    else { const A = NODES[v.from], B = NODES[v.to]; x = A.x + (B.x-A.x)*v.prog; y = A.y + (B.y-A.y)*v.prog; }
+    ctx.fillStyle = hid ? 'rgba(255,45,85,0.15)' : 'rgba(255,45,85,0.35)';
+    ctx.beginPath(); ctx.arc(x, y, 6, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = hid ? 'rgba(255,45,85,0.3)' : '#ff2d55';
+    ctx.beginPath(); ctx.arc(x, y, 2.5, 0, Math.PI*2); ctx.fill();
+  }
+  for (const u of G.units) {
+    const t = UT[u.type];
+    const [x, y] = unitPos(u);
+    const fade = Math.min(1, (u.life - u.age)/5);
+    ctx.globalAlpha = 0.25*fade; ctx.fillStyle = t.color;
+    ctx.beginPath(); ctx.arc(x, y, t.size*2.4, 0, Math.PI*2); ctx.fill();
+    ctx.globalAlpha = fade;
+    ctx.beginPath(); ctx.arc(x, y, t.size, 0, Math.PI*2); ctx.fill();
+    if (u.type === 'kt') {
+      ctx.strokeStyle = '#ff8fd0'; ctx.lineWidth = 1.2;
+      ctx.beginPath(); ctx.arc(x, y, t.size + 2.5, 0, Math.PI*2); ctx.stroke();
+    }
+  }
+  ctx.globalAlpha = 1;
+  for (const s of G.sparks) {
+    const p = s.life/s.max;
+    ctx.fillStyle = `rgba(255,240,200,${p})`;
+    ctx.beginPath(); ctx.arc(s.x, s.y, 1 + (1-p)*3, 0, Math.PI*2); ctx.fill();
+  }
+  ctx.globalCompositeOperation = 'source-over';
+
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  for (const k in NODES) {
+    const P = NODES[k], n = N[k];
+    ctx.font = '600 13px system-ui,sans-serif';
+    const w = ctx.measureText(P.name).width + 10;
+    ctx.fillStyle = 'rgba(2,4,10,0.7)'; ctx.fillRect(P.x - w/2, P.y + 38, w, 17);
+    ctx.fillStyle = P.vital ? '#ffc2cf' : '#cfe0ff';
+    ctx.fillText(P.name, P.x, P.y + 47);
+    if (n.V > 0) {
+      ctx.font = '600 12px system-ui,sans-serif'; ctx.fillStyle = '#ffd0da';
+      ctx.fillText(hid ? '??' : Math.round(n.V), P.x, P.y);
+    } else if (P.base) {
+      ctx.font = '11px system-ui,sans-serif'; ctx.fillStyle = 'rgba(94,224,255,0.8)';
+      ctx.fillText('BUILD', P.x, P.y);
+    }
+  }
+
+  if (G.fever) {
+    ctx.setTransform(1,0,0,1,0,0);
+    const vg = ctx.createRadialGradient(cv.width/2, cv.height/2, Math.min(cv.width, cv.height)*0.35, cv.width/2, cv.height/2, Math.max(cv.width, cv.height)*0.75);
+    vg.addColorStop(0, 'rgba(255,90,40,0)');
+    vg.addColorStop(1, `rgba(255,90,40,${0.16 + 0.05*Math.sin(performance.now()/300)})`);
+    ctx.fillStyle = vg; ctx.fillRect(0, 0, cv.width, cv.height);
+  }
+}
+
+// ---------- Panel ----------
+function panelSig() {
+  if (!G) return 'none';
+  if (!G.selected) return 'ov';
+  const cnt = {};
+  for (const u of G.units) if (u.node === G.selected) cnt[u.type] = (cnt[u.type] || 0) + 1;
+  return [G.selected, JSON.stringify(cnt), G.rally, !!G.dispatch].join('|');
+}
+
+function renderPanel() {
+  const P = $('#pbody');
+  if (!G) { P.innerHTML = ''; return; }
+  if (!G.selected) {
+    P.innerHTML = `
+      <h2>${G.d.name}</h2>
+      <p>${G.d.about}</p>
+      <p style="color:var(--text)">${G.d.trait}</p>
+      <h3>Organs</h3>
+      ${Object.keys(NODES).map(k => `<div class="orow" data-act="select" data-node="${k}">
+        <span>${NODES[k].name}${NODES[k].vital ? ' <span class="tag">vital</span>' : ''}</span>
+        <div class="bar"><i id="o-h-${k}"></i></div><b id="o-v-${k}"></b></div>`).join('')}
+      <h3>Quick start</h3>
+      <p>1. Click <b>Bone Marrow</b> and build cells (or press 1–3).<br>2. <b>Drag</b> from the Bone Marrow to an organ to send them.<br>3. Get there before the wave hits.</p>`;
+    return;
+  }
+  const k = G.selected, P0 = NODES[k];
+  const groups = {};
+  for (const u of G.units) if (u.node === k) (groups[u.type] = groups[u.type] || []).push(u);
+  const types = Object.keys(UT).filter(t => groups[t]);
+  let h = `<h2>${P0.name}${P0.vital ? '<span class="tag">vital</span>' : ''}</h2>
+    <div class="stat"><span>Health</span><div class="bar"><i id="p-hp"></i></div><b id="p-hpv"></b></div>
+    <div class="stat"><span>Virus</span><div class="bar"><i id="p-v" style="background:var(--virus)"></i></div><b id="p-vv"></b></div>
+    <h3>Cells here</h3>`;
+  if (!types.length) h += `<p>None.</p>`;
+  else {
+    for (const t of types) {
+      h += `<div class="urow" title="${UT[t].desc}"><i class="dot" style="background:${UT[t].color};color:${UT[t].color}"></i>
+        <span class="nm">${UT[t].name} <b>×${groups[t].length}</b></span>
+        <button data-act="send" data-type="${t}">Send</button></div>`;
+    }
+    h += `<div style="margin-top:8px"><button data-act="sendall">Send all</button> <span style="color:var(--dim);font-size:12px">or drag to an organ</span></div>`;
+  }
+  if (P0.base) {
+    h += `<h3>Build</h3>`;
+    for (const t in UT) {
+      h += `<button class="bbtn" data-act="build" data-type="${t}" title="${UT[t].desc}">
+        <span class="k">${UT[t].key}</span><i class="dot" style="background:${UT[t].color};color:${UT[t].color}"></i>
+        <span class="nm">${UT[t].name}<small id="br-${t}">${UT[t].desc}</small></span><span class="cost">${UT[t].cost}</span></button>`;
+    }
+    h += `<p id="p-queue"></p>
+      <h3>Send new cells to</h3>
+      <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+        <b style="font-weight:500">${G.rally ? NODES[G.rally].name : 'Stay here'}</b>
+        <button data-act="rally">Choose…</button>${G.rally ? '<button data-act="clearrally">Clear</button>' : ''}
+      </div>`;
+  }
+  P.innerHTML = h;
+}
+
+function setBar(id, frac, color) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.style.width = (Math.max(0, Math.min(1, frac))*100) + '%';
+  if (color) el.style.background = color;
+}
+function setText(id, txt) { const el = document.getElementById(id); if (el && el.textContent !== String(txt)) el.textContent = txt; }
+
+function updateLive() {
+  if (!G) return;
+  const hid = hidden(), avg = avgHp();
+  setBar('t-e', G.energy/150); setText('t-ev', Math.floor(G.energy));
+  setBar('t-m', G.memory); setText('t-mv', ktUnlocked() ? 'Ready' : Math.floor(G.memory*100) + '%');
+  setBar('t-h', avg/100, hpColor(avg)); setText('t-hv', Math.round(avg) + '%');
+  if (G.wave < G.d.waves) {
+    const left = Math.max(0, Math.ceil(G.nextWave - G.t));
+    setText('t-w', `${G.wave}/${G.d.waves} · next in ${left}s → ${hid ? '???' : NODES[waveTarget(G.wave)].name}`);
+  } else setText('t-w', `${G.wave}/${G.d.waves} · clear the rest!`);
+  $('#b-fever').classList.toggle('on', G.fever);
+  $('#b-fever').textContent = G.fever ? 'Fever ON' : 'Fever';
+  $('#b-pause').textContent = G.paused ? 'Resume' : 'Pause';
+  $('#b-speed').textContent = G.speed + '×';
+  $('#pausedTag').style.display = G.paused && !G.over ? 'block' : 'none';
+
+  const hint = $('#hint');
+  if (G.dispatch) {
+    hint.style.display = 'block';
+    hint.textContent = G.dispatch.rally ? 'Click the organ new cells should go to (Esc to cancel)' : `Click where to send ${G.dispatch.label} (Esc to cancel)`;
+  } else hint.style.display = 'none';
+
+  const now = performance.now();
+  for (const el of $('#log').children) el.style.opacity = Math.max(0, 1 - (now - el.dataset.born - 8000)/2000);
+
+  const sig = panelSig();
+  if (sig !== G.panelSig) { G.panelSig = sig; renderPanel(); }
+
+  if (!G.selected) {
+    for (const k in NODES) {
+      const n = G.nodes[k];
+      setBar('o-h-' + k, n.hp/100, hpColor(n.hp));
+      setText('o-v-' + k, n.V > 0 ? (hid ? '??' : Math.round(n.V)) : '');
+    }
+    return;
+  }
+  const n = G.nodes[G.selected];
+  setBar('p-hp', n.hp/100, hpColor(n.hp)); setText('p-hpv', Math.round(n.hp));
+  setBar('p-v', hid ? 0 : n.V/K); setText('p-vv', hid && n.V > 0 ? '??' : Math.round(n.V));
+  for (const t in UT) {
+    const btn = document.querySelector(`[data-act="build"][data-type="${t}"]`);
+    if (!btn) continue;
+    const why = buildBlock(t);
+    btn.disabled = !!why;
+    setText('br-' + t, why && why !== 'Queue full' ? why : UT[t].desc);
+  }
+  const q = G.nodes.marrow.queue;
+  setText('p-queue', q.length ? 'Building: ' + q.map(t => UT[t].name).join(', ') : '');
+}
+
+$('#pbody').addEventListener('click', e => {
+  const b = e.target.closest('[data-act]');
+  if (!b || !G || G.over) return;
+  const act = b.dataset.act, k = G.selected;
+  if (act === 'select') G.selected = b.dataset.node;
+  else if (act === 'build') build(b.dataset.type);
+  else if (act === 'rally') G.dispatch = {rally:true, from:'marrow'};
+  else if (act === 'clearrally') G.rally = null;
+  else if (act === 'sendall' || act === 'send') {
+    const list = unitsAt(k).filter(u => act === 'sendall' || u.type === b.dataset.type);
+    if (list.length) G.dispatch = {ids:list.map(u => u.id), from:k, label:`${list.length} cell${list.length > 1 ? 's' : ''}`};
+  }
+});
+
+// ---------- Input ----------
+function toLogical(e) {
+  const r = cv.getBoundingClientRect();
+  return {x:(e.clientX - r.left - offX)/scale, y:(e.clientY - r.top - offY)/scale};
+}
+function sendAll(from, to) {
+  const c = send(unitsAt(from), to);
+  if (c) log(`Sent ${c} cell${c > 1 ? 's' : ''} to the ${NODES[to].name}.`);
+}
+cv.addEventListener('pointerdown', e => {
+  if (!G || G.over || e.button === 2) return;
+  mouse = toLogical(e);
+  const k = nodeAt(mouse.x, mouse.y);
+  drag = k ? {from:k, moved:false, x:mouse.x, y:mouse.y} : null;
+  cv.setPointerCapture(e.pointerId);
+});
+cv.addEventListener('pointermove', e => {
+  mouse = toLogical(e);
+  hoverNode = nodeAt(mouse.x, mouse.y);
+  if (drag && Math.hypot(mouse.x - drag.x, mouse.y - drag.y) > 12) drag.moved = true;
+  cv.style.cursor = hoverNode ? 'pointer' : (G && G.dispatch ? 'crosshair' : 'default');
+});
+cv.addEventListener('pointerleave', () => { mouse = {x:-1, y:-1}; hoverNode = null; });
+cv.addEventListener('pointerup', e => {
+  if (!G || G.over || e.button === 2) { drag = null; return; }
+  const p = toLogical(e), k = nodeAt(p.x, p.y);
+  const D = drag; drag = null;
+  if (D && D.moved) {
+    if (k && k !== D.from) sendAll(D.from, k);
+    return;
+  }
+  if (G.dispatch) {
+    const X = G.dispatch; G.dispatch = null;
+    if (!k) return;
+    if (X.rally) { G.rally = k === 'marrow' ? null : k; if (G.rally) log(`New cells will go to the ${NODES[k].name}.`); }
+    else {
+      const set = new Set(X.ids);
+      const c = send(G.units.filter(u => set.has(u.id)), k);
+      if (c) log(`Sent ${c} cell${c > 1 ? 's' : ''} to the ${NODES[k].name}.`);
+    }
+    return;
+  }
+  G.selected = k;
+});
+cv.addEventListener('contextmenu', e => {
+  e.preventDefault();
+  if (!G || G.over || !G.selected) return;
+  const p = toLogical(e), k = nodeAt(p.x, p.y);
+  if (k && k !== G.selected) sendAll(G.selected, k);
+});
+window.addEventListener('keydown', e => {
+  if (!G || G.over || !$('#menu').classList.contains('hide')) return;
+  if (!$('#helpov').classList.contains('hide')) { if (e.key === 'Escape' || e.key === 'h' || e.key === '?') closeHelp(); return; }
+  if (e.key === 'Escape') { if (G.dispatch) G.dispatch = null; else G.selected = null; return; }
+  if (e.key === ' ') { e.preventDefault(); G.paused = !G.paused; return; }
+  if (e.key === 'f' || e.key === 'F') { toggleFever(); return; }
+  if (e.key === 'h' || e.key === '?') { openHelp(); return; }
+  for (const t in UT) if (UT[t].key === e.key) {
+    if (!build(t)) { const why = buildBlock(t); if (why) log(`${UT[t].name}: ${why}.`); }
+    return;
+  }
+});
+
+$('#b-fever').onclick = toggleFever;
+$('#b-pause').onclick = () => { if (G) G.paused = !G.paused; };
+$('#b-speed').onclick = () => { if (G) G.speed = G.speed === 1 ? 2 : G.speed === 2 ? 3 : 1; };
+$('#b-help').onclick = openHelp;
+$('#m-help').onclick = openHelp;
+$('#h-close').onclick = closeHelp;
+$('#b-menu').onclick = showMenu;
+$('#end-again').onclick = () => newGame(G.did);
+$('#end-menu').onclick = showMenu;
+
+let pausedByHelp = false;
+function openHelp() {
+  $('#helpov').classList.remove('hide');
+  if (G && !G.paused && !G.over) { G.paused = true; pausedByHelp = true; }
+}
+function closeHelp() {
+  $('#helpov').classList.add('hide');
+  if (G && pausedByHelp) G.paused = false;
+  pausedByHelp = false;
+}
+function showMenu() {
+  if (G) G.paused = true;
+  $('#endov').classList.add('hide');
+  $('#menu').classList.remove('hide');
+}
+
+// ---------- Menu ----------
+$('#cards').innerHTML = Object.entries(DISEASES).map(([id, d]) => `
+  <div class="card" data-d="${id}">
+    <span class="diff" style="color:${d.diffColor}">${d.diff}</span>
+    <h2>${d.name}</h2>
+    <p>${d.about}</p>
+    <p class="trait">${d.trait}</p>
+  </div>`).join('');
+$('#cards').addEventListener('click', e => { const c = e.target.closest('.card'); if (c) newGame(c.dataset.d); });
+$('#helpUnits').innerHTML = Object.values(UT).map(t => `<div class="u"><i class="dot" style="background:${t.color};color:${t.color}"></i><div><b>${t.name}</b> <span class="cost">${t.cost} Energy</span> · <span style="color:var(--dim)">${t.desc}</span></div></div>`).join('');
+
+// ---------- Loop ----------
+let last = performance.now(), liveT = 0;
+function frame(now) {
+  const real = Math.min(0.1, (now - last)/1000);
+  last = now;
+  if (G && !G.paused && !G.over) {
+    let rem = real*G.speed;
+    while (rem > 0) { const s = Math.min(0.05, rem); step(s); rem -= s; if (G.over) break; }
+  }
+  draw();
+  liveT += real;
+  if (liveT > 0.1) { liveT = 0; updateLive(); }
+  requestAnimationFrame(frame);
+}
+resize();
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
