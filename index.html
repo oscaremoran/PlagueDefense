@@ -134,7 +134,7 @@ canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
     <p><b>Goal:</b> survive every wave of virus, then clear what's left. You lose if the Brain, Heart or Lungs reach 0 health, or the whole body drops below 30%.</p>
     <h3>The loop</h3>
     <ol>
-      <li><b>Watch for the next wave.</b> The top bar and a pulsing ring on the map show which organ gets hit next, and when.</li>
+      <li><b>Watch the forecast.</b> Orange rings show the two organs the next wave <i>might</i> hit. 7 seconds before it lands, the real target turns red. Some waves hit both.</li>
       <li><b>Build cells</b> in the <b>Bone Marrow</b>: click it and press a button, or use keys <b>1–3</b> from anywhere. Cells cost Energy, which refills over time.</li>
       <li><b>Move cells</b>: <b>drag</b> from one organ to another to send every cell there. Or select an organ and press <b>Send</b> next to a cell type, then click where to go.</li>
       <li>Cells fight on their own when they arrive. They die of old age, so keep the reinforcements coming.</li>
@@ -143,7 +143,8 @@ canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
     <div id="helpUnits"></div>
     <h3>Tips</h3>
     <ul>
-      <li><b>Get there first.</b> Cells already waiting in an organ crush a wave as it lands. Late cells face a much bigger fight.</li>
+      <li><b>You can't cover everything.</b> Park slow Macrophages between the two possible targets, and keep fast Neutrophils ready to rush in once the target turns red.</li>
+      <li><b>Protect the body.</b> Energy refills slower when organs are hurt, so losing a fight makes the next one harder.</li>
       <li><b>Send new cells to:</b> set this on the Bone Marrow so every new cell walks straight to that organ.</li>
       <li><b>Memory</b> fills as you kill virus. When it's full you can build Killer T cells.</li>
       <li><b>Fever (F)</b> helps in a crisis but drains Energy and hurts every organ. Turn it off afterwards.</li>
@@ -193,6 +194,7 @@ for (let q = ['brain']; q.length;) { const a = q.shift(); for (const b of ADJ[a]
 const VITAL = ['brain','heart','lungs'];
 const K = 150;             // most virus one organ can hold
 const MEMORY_NEEDED = 220; // virus killed to unlock Killer T
+const WAVE_MUL = 1.15;      // global wave-size multiplier
 
 const UT = {
   neut:{name:'Neutrophil', color:'#6ee7ff', cost:15, build:0.8, life:25, speed:110, kill:1.5, size:3,   key:'1',
@@ -210,7 +212,7 @@ const DISEASES = {
     name:'Common Cold', diff:'Easy', diffColor:'#3dffb0',
     about:'Hits the nose over and over. Rarely goes deeper.',
     trait:'Mild: does little damage.',
-    waves:7, targets:['nose'], size:[13,6],
+    waves:7, targets:['nose','nose','lungs'], size:[13,6],
     tropism:{nose:1, lungs:0.3}, r:0.075, vir:0.7, spread:0.36,
   },
   chickenpox: { pressure:1.6,
@@ -225,7 +227,7 @@ const DISEASES = {
     name:'Rotavirus', diff:'Easy', diffColor:'#3dffb0',
     about:'A stomach bug that camps in the gut.',
     trait:'While the Gut is infected, Energy refills at half speed.',
-    waves:7, targets:['gut'], size:[13,6],
+    waves:7, targets:['gut','gut','liver'], size:[13,6],
     tropism:{gut:1.1, liver:0.3}, r:0.08, vir:0.8, spread:0.4,
     drainsEnergy:true,
   },
@@ -302,9 +304,28 @@ const DISEASES = {
   },
 };
 // `pressure` scales growth and wave size: the main difficulty knob.
+// `split` = chance a wave hits both forecast organs, from wave `splitFrom` on.
+const SPLIT_BY_DIFF = {'Easy':[0.25,5], 'Medium':[0.4,3], 'Hard':[0.5,3], 'Very hard':[0.6,2]};
 for (const k in DISEASES) {
-  const d = Object.assign(DISEASES[k], {interval:20, first:6}, DISEASES[k]);
-  d.r *= d.pressure; d.size = d.size.map(x => x*d.pressure);
+  const [split, splitFrom] = SPLIT_BY_DIFF[DISEASES[k].diff];
+  const d = Object.assign(DISEASES[k], {interval:20, first:10, split, splitFrom}, DISEASES[k]);
+  d.r *= d.pressure; d.size = d.size.map(x => x*d.pressure*WAVE_MUL);
+}
+const REVEAL = 7;          // seconds before impact the real target is shown
+const SPLIT_SHARE = 0.65;  // each half of a split wave is this much of a full wave
+
+// Each wave: two candidate organs are forecast; it hits one of them, or both if split.
+function planWaves(d) {
+  const pool = [...new Set(d.targets)], plan = [];
+  for (let i = 0; i < d.waves; i++) {
+    const a = d.targets[Math.floor(Math.random()*d.targets.length)];
+    const others = pool.filter(k => k !== a);
+    const b = others[Math.floor(Math.random()*others.length)];
+    const last = i === d.waves - 1 && d.diff !== 'Easy';
+    const split = last || (i >= d.splitFrom - 1 && Math.random() < d.split);
+    plan.push({cands: Math.random() < 0.5 ? [a,b] : [b,a], hit: split ? [a,b] : [a]});
+  }
+  return plan;
 }
 
 // ---------- State ----------
@@ -316,13 +337,14 @@ function newGame(did) {
   G = {
     did, d, t:0, energy:60, memory:0, fever:false, speed:1, paused:false, over:false,
     units:[], virions:[], sparks:[], nodes:{}, uid:0, selected:null, dispatch:null, rally:null,
-    wave:0, nextWave:d.first, stats:{built:0, killed:0}, panelSig:'',
+    wave:0, nextWave:d.first, plan:planWaves(d), revealedWave:-1, stats:{built:0, killed:0}, panelSig:'',
   };
   for (const k in NODES) G.nodes[k] = {V:0, hp:100, queue:[], buildT:0, seed:{}};
   $('#log').innerHTML = '';
   $('#menu').classList.add('hide');
   $('#endov').classList.add('hide');
-  banner(d.name, `The first wave hits the ${NODES[d.targets[0]].name} in ${d.first} seconds.`);
+  const c0 = G.plan[0].cands;
+  banner(d.name, `The first wave hits the ${NODES[c0[0]].name} or the ${NODES[c0[1]].name} in ${d.first} seconds.`);
   if (!seenHelp) { seenHelp = true; openHelp(); }
 }
 
@@ -333,7 +355,8 @@ const unitsAt = k => G.units.filter(u => !u.dead && u.node === k);
 const fmtTime = t => Math.floor(t/60) + ':' + String(Math.floor(t%60)).padStart(2,'0');
 const avgHp = () => { let s = 0, c = 0; for (const k in G.nodes) { s += G.nodes[k].hp; c++; } return s/c; };
 const hpColor = h => `hsl(${Math.max(0,Math.min(120,h*1.2))},90%,58%)`;
-const waveTarget = i => G.d.targets[i % G.d.targets.length];
+const revealed = () => G.wave < G.d.waves && G.nextWave - G.t <= REVEAL;
+const names = ks => ks.map(k => NODES[k].name).join(' + ');
 const waveSize = i => (G.d.size[0] + G.d.size[1]*i)*(G.d.lastWaveMul && i === G.d.waves - 1 ? G.d.lastWaveMul : 1);
 const ktUnlocked = () => G.memory >= 1;
 
@@ -415,16 +438,20 @@ function log(msg) {
 
 // ---------- Simulation ----------
 function launchWave() {
-  const d = G.d, i = G.wave, k = waveTarget(i), amt = waveSize(i), P = NODES[k];
+  const d = G.d, i = G.wave, hit = G.plan[i].hit;
+  const amt = waveSize(i)*(hit.length > 1 ? SPLIT_SHARE : 1);
   // a swarm of virions flies in from outside the body
-  const n = Math.min(18, Math.ceil(amt/3));
-  for (let j = 0; j < n; j++) {
-    const a = Math.random()*Math.PI*2;
-    G.virions.push({x0:P.x + Math.cos(a)*260, y0:P.y + Math.sin(a)*260, to:k, prog:-j*0.03, amt:amt/n, wave:true});
+  for (const k of hit) {
+    const P = NODES[k], n = Math.min(18, Math.ceil(amt/3));
+    for (let j = 0; j < n; j++) {
+      const a = Math.random()*Math.PI*2;
+      G.virions.push({x0:P.x + Math.cos(a)*260, y0:P.y + Math.sin(a)*260, to:k, prog:-j*0.03, amt:amt/n, wave:true});
+    }
   }
   G.wave++;
-  G.nextWave = G.t + d.interval;
-  log(hidden() ? `Wave ${G.wave} of ${d.waves} has landed somewhere.` : `Wave ${G.wave} of ${d.waves} is hitting the ${P.name}.`);
+  // waves come a little faster as the infection takes hold
+  G.nextWave = G.t + Math.max(13, d.interval - 0.7*G.wave);
+  log(hidden() ? `Wave ${G.wave} of ${d.waves} has landed somewhere.` : `Wave ${G.wave} of ${d.waves} is hitting the ${names(hit)}.`);
   if (d.forget && G.wave === d.forget.wave) {
     let lost = 0;
     for (const u of G.units) if (u.type === 'kt') { u.dead = true; lost++; }
@@ -436,9 +463,19 @@ function launchWave() {
 function step(dt) {
   const d = G.d, N = G.nodes;
   G.t += dt;
+  if (revealed() && G.revealedWave < G.wave) {
+    G.revealedWave = G.wave;
+    const hit = G.plan[G.wave].hit;
+    if (!hidden()) {
+      if (hit.length > 1) banner('Split wave!', `Wave ${G.wave + 1} hits both the ${NODES[hit[0]].name} and the ${NODES[hit[1]].name} in ${REVEAL} seconds.`);
+      else log(`Wave ${G.wave + 1} is going for the ${NODES[hit[0]].name}!`);
+    }
+  }
   if (G.wave < d.waves && G.t >= G.nextWave) launchWave();
 
-  G.energy = Math.min(150, G.energy + 5*(d.drainsEnergy && N.gut.V > 5 ? 0.5 : 1)*dt);
+  // Energy refills slower when the body is hurt
+  const regen = 5*(0.4 + 0.6*avgHp()/100)*(d.drainsEnergy && N.gut.V > 5 ? 0.5 : 1);
+  G.energy = Math.min(150, G.energy + regen*dt);
   if (G.fever) {
     G.energy -= 3*dt;
     if (G.energy <= 0) { G.energy = 0; G.fever = false; log('Fever broke: out of Energy.'); }
@@ -499,7 +536,7 @@ function step(dt) {
       }
     }
 
-    let dmg = d.vir*(n.V/K)*2;
+    let dmg = d.vir*(n.V/K)*3;
     if (G.fever) dmg += 0.15;
     n.hp -= dmg*dt;
     if (n.V === 0 && !(d.noHeal && anyVirus)) n.hp += 0.4*dt;
@@ -531,8 +568,17 @@ function step(dt) {
   if (G.wave >= d.waves && totalV() === 0 && G.virions.length === 0) return endGame(true, `You survived all ${d.waves} waves of ${d.name}.`);
 }
 
+const starsFor = hp => hp >= 85 ? 3 : hp >= 60 ? 2 : 1;
+const starStr = n => '★'.repeat(n) + '☆'.repeat(3 - n);
+function bestStars(did) { try { return +localStorage.getItem('pd-best-' + did) || 0; } catch (e) { return 0; } }
 function endGame(win, reason) {
   G.over = true; G.dispatch = null;
+  if (win) {
+    const st = starsFor(avgHp());
+    reason += ` ${starStr(st)}` + (st < 3 ? ' (finish above 85% body health for 3 stars)' : '');
+    try { if (st > bestStars(G.did)) localStorage.setItem('pd-best-' + G.did, st); } catch (e) {}
+    renderCards();
+  }
   $('#end-t').textContent = win ? 'You win!' : 'The body has fallen';
   $('#end-t').style.color = win ? 'var(--good)' : 'var(--virus)';
   $('#end-p').textContent = reason;
@@ -642,14 +688,22 @@ function draw() {
 
   // incoming wave warning
   if (G.wave < G.d.waves && !hid) {
-    const left = G.nextWave - T, P = NODES[waveTarget(G.wave)];
-    if (left < 10) {
-      const pulse = 0.5 + 0.5*Math.sin(T*8);
-      ctx.strokeStyle = `rgba(255,45,85,${0.35 + 0.45*pulse})`; ctx.lineWidth = 2.5; ctx.setLineDash([10,6]);
-      ctx.beginPath(); ctx.arc(P.x, P.y, 62 + pulse*4, -T, -T + Math.PI*2); ctx.stroke(); ctx.setLineDash([]);
-      ctx.font = '700 13px system-ui,sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.fillStyle = '#ff6b88';
-      ctx.fillText(`WAVE IN ${Math.ceil(left)}`, P.x, P.y - 74);
+    const left = G.nextWave - T, w = G.plan[G.wave], rev = revealed();
+    ctx.font = '700 13px system-ui,sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    for (const k of rev ? w.hit : w.cands) {
+      const P = NODES[k];
+      if (rev) {
+        const pulse = 0.5 + 0.5*Math.sin(T*8);
+        ctx.strokeStyle = `rgba(255,45,85,${0.35 + 0.45*pulse})`; ctx.lineWidth = 2.5; ctx.setLineDash([10,6]);
+        ctx.beginPath(); ctx.arc(P.x, P.y, 62 + pulse*4, -T, -T + Math.PI*2); ctx.stroke(); ctx.setLineDash([]);
+        ctx.fillStyle = '#ff6b88';
+        ctx.fillText(`WAVE IN ${Math.ceil(left)}`, P.x, P.y - 74);
+      } else {
+        ctx.strokeStyle = 'rgba(255,179,71,0.45)'; ctx.lineWidth = 1.8; ctx.setLineDash([4,7]);
+        ctx.beginPath(); ctx.arc(P.x, P.y, 62, T*0.5, T*0.5 + Math.PI*2); ctx.stroke(); ctx.setLineDash([]);
+        ctx.fillStyle = 'rgba(255,179,71,0.85)';
+        ctx.fillText(`MAYBE · ${Math.ceil(left)}`, P.x, P.y - 74);
+      }
     }
   }
 
@@ -776,7 +830,7 @@ function renderPanel() {
         <span>${NODES[k].name}${NODES[k].vital ? ' <span class="tag">vital</span>' : ''}</span>
         <div class="bar"><i id="o-h-${k}"></i></div><b id="o-v-${k}"></b></div>`).join('')}
       <h3>Quick start</h3>
-      <p>1. Click <b>Bone Marrow</b> and build cells (or press 1–3).<br>2. <b>Drag</b> from the Bone Marrow to an organ to send them.<br>3. Get there before the wave hits.</p>`;
+      <p>1. Click <b>Bone Marrow</b> and build cells (or press 1–3).<br>2. <b>Drag</b> from the Bone Marrow to an organ to send them.<br>3. Orange = might be hit. Red = will be hit in 7s.</p>`;
     return;
   }
   const k = G.selected, P0 = NODES[k];
@@ -829,7 +883,9 @@ function updateLive() {
   setBar('t-h', avg/100, hpColor(avg)); setText('t-hv', Math.round(avg) + '%');
   if (G.wave < G.d.waves) {
     const left = Math.max(0, Math.ceil(G.nextWave - G.t));
-    setText('t-w', `${G.wave}/${G.d.waves} · next in ${left}s → ${hid ? '???' : NODES[waveTarget(G.wave)].name}`);
+    const w = G.plan[G.wave];
+    const tgt = hid ? '???' : revealed() ? names(w.hit).toUpperCase() : w.cands.map(k => NODES[k].name).join(' or ') + '?';
+    setText('t-w', `${G.wave}/${G.d.waves} · next in ${left}s → ${tgt}`);
   } else setText('t-w', `${G.wave}/${G.d.waves} · clear the rest!`);
   $('#b-fever').classList.toggle('on', G.fever);
   $('#b-fever').textContent = G.fever ? 'Fever ON' : 'Fever';
@@ -975,13 +1031,16 @@ function showMenu() {
 }
 
 // ---------- Menu ----------
-$('#cards').innerHTML = Object.entries(DISEASES).map(([id, d]) => `
+function renderCards() {
+  $('#cards').innerHTML = Object.entries(DISEASES).map(([id, d]) => `
   <div class="card" data-d="${id}">
-    <span class="diff" style="color:${d.diffColor}">${d.diff}</span>
+    <span class="diff" style="color:${d.diffColor}">${d.diff}${bestStars(id) ? ` <span style="color:var(--energy);float:right">${starStr(bestStars(id))}</span>` : ''}</span>
     <h2>${d.name}</h2>
     <p>${d.about}</p>
     <p class="trait">${d.trait}</p>
   </div>`).join('');
+}
+renderCards();
 $('#cards').addEventListener('click', e => { const c = e.target.closest('.card'); if (c) newGame(c.dataset.d); });
 $('#helpUnits').innerHTML = Object.values(UT).map(t => `<div class="u"><i class="dot" style="background:${t.color};color:${t.color}"></i><div><b>${t.name}</b> <span class="cost">${t.cost} Energy</span> · <span style="color:var(--dim)">${t.desc}</span></div></div>`).join('');
 
