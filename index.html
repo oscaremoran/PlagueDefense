@@ -54,6 +54,9 @@ canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
 #banner.show{opacity:1}
 #banner h3{color:var(--warn);font-size:15px;margin-bottom:4px}
 #banner p{margin:0;font-size:13px}
+#banner.out{border-color:var(--virus);background:rgba(40,8,18,.94)}
+#banner.out h3{color:#ff6b88;font-size:18px}
+#banner.out p{font-size:15px;font-style:italic;color:#ffe0e6}
 #hint{position:absolute;left:50%;bottom:14px;transform:translateX(-50%);background:#0d2230;border:1px solid var(--accent);color:var(--accent);padding:6px 14px;border-radius:20px;font-size:13px;display:none;pointer-events:none}
 #pausedTag{position:absolute;right:14px;top:14px;color:var(--warn);font-weight:700;letter-spacing:.15em;display:none}
 .overlay{position:fixed;inset:0;background:rgba(2,4,10,.9);display:flex;align-items:flex-start;justify-content:center;overflow-y:auto;padding:40px 16px;z-index:10}
@@ -96,12 +99,13 @@ canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
     <span class="title">Plague Defense</span>
     <span class="res" title="Spend Energy to build cells. It refills over time."><label>Energy</label><div class="bar"><i id="t-e" style="background:var(--energy)"></i></div><span id="t-ev"></span></span>
     <span class="res" title="Fills as your cells kill virus. When full, Killer T cells unlock."><label>Memory</label><div class="bar"><i id="t-m" style="background:var(--mem)"></i></div><span id="t-mv"></span></span>
-    <span class="res" title="Average health of all organs. Below 30% you lose."><label>Body</label><div class="bar"><i id="t-h"></i></div><span id="t-hv"></span></span>
-    <span class="res"><label>Wave</label><span id="t-w"></span></span>
+    <span class="res" title="Average health of all organs. Below 50% you lose."><label>Body</label><div class="bar"><i id="t-h"></i></div><span id="t-hv"></span></span>
+    <span class="res"><label>Outbreaks</label><span id="t-w"></span></span>
     <span class="spacer"></span>
     <button id="b-fever" title="Fever (F): your cells kill 30% faster and the virus grows slower. Drains Energy and slowly hurts every organ.">Fever</button>
     <button id="b-pause" title="Pause (Space)">Pause</button>
     <button id="b-speed" title="Game speed">1×</button>
+    <button id="b-mute" title="Sound on/off (M)">Sound</button>
     <button id="b-help" title="How to play (H)">?</button>
     <button id="b-menu">Menu</button>
   </div>
@@ -121,7 +125,7 @@ canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
   <div class="box">
     <div class="menuhead">
       <h1>PLAGUE DEFENSE</h1>
-      <p>Pick a disease. Send immune cells where the virus attacks. Survive every wave.</p>
+      <p>Pick a disease. Send immune cells where the virus attacks. Survive every outbreak, then beat the boss virus.</p>
     </div>
     <div class="cards" id="cards"></div>
     <div class="menufoot"><button id="m-help">How to play</button></div>
@@ -131,19 +135,26 @@ canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
 <div id="helpov" class="overlay hide">
   <div class="help">
     <h2>How to play</h2>
-    <p><b>Goal:</b> survive every wave of virus, then clear what's left. You lose if the Brain, Heart or Lungs reach 0 health, or the whole body drops below 30%.</p>
+    <p><b>Goal:</b> survive every outbreak, beat the boss virus, then clear what's left (after the boss, the virus can't grow any more). You lose if the Brain, Heart or Lungs reach 0 health, or the whole body drops below 50%.</p>
     <h3>The loop</h3>
     <ol>
-      <li><b>Watch the forecast.</b> Orange rings show the two organs the next wave <i>might</i> hit. 7 seconds before it lands, the real target turns red. Some waves hit both.</li>
+      <li><b>Outbreaks come without warning.</b> A message tells you how the virus got in and which organ it's heading for. You have about 2 seconds before it lands.</li>
       <li><b>Build cells</b> in the <b>Bone Marrow</b>: click it and press a button, or use keys <b>1–3</b> from anywhere. Cells cost Energy, which refills over time.</li>
       <li><b>Move cells</b>: <b>drag</b> from one organ to another to send every cell there. Or select an organ and press <b>Send</b> next to a cell type, then click where to go.</li>
       <li>Cells fight on their own when they arrive. They die of old age, so keep the reinforcements coming.</li>
     </ol>
     <h3>Cells</h3>
     <div id="helpUnits"></div>
+    <h3>Organ abilities</h3>
+    <div id="helpAbil"></div>
+    <p style="font-size:13px;color:var(--dim)">Each one costs Energy and then needs time to recharge. An organ below 25% health can't use its ability.</p>
+    <h3>The boss</h3>
+    <p style="font-size:13px">After the last outbreak, a boss virus appears. It moves from organ to organ toward a vital organ, stopping in each one for a few seconds. Cells in that organ hurt it. If it reaches its target, it bursts and floods that organ with virus.</p>
     <h3>Tips</h3>
     <ul>
-      <li><b>You can't cover everything.</b> Park slow Macrophages between the two possible targets, and keep fast Neutrophils ready to rush in once the target turns red.</li>
+      <li><b>Wipe it out.</b> Clear every last virus from an organ to win bonus Energy. Wipe out several in a row for a combo.</li>
+      <li><b>Pop Energy bubbles.</b> Gold bubbles drift along the vessels. Click one for free Energy.</li>
+      <li><b>Learn where it lands.</b> Each disease has favorite organs. Park slow Macrophages near them and keep fast Neutrophils ready to rush in.</li>
       <li><b>Protect the body.</b> Energy refills slower when organs are hurt, so losing a fight makes the next one harder.</li>
       <li><b>Send new cells to:</b> set this on the Bone Marrow so every new cell walks straight to that organ.</li>
       <li><b>Memory</b> fills as you kill virus. When it's full you can build Killer T cells.</li>
@@ -194,139 +205,148 @@ for (let q = ['brain']; q.length;) { const a = q.shift(); for (const b of ADJ[a]
 const VITAL = ['brain','heart','lungs'];
 const K = 150;             // most virus one organ can hold
 const MEMORY_NEEDED = 220; // virus killed to unlock Killer T
-const WAVE_MUL = 1.15;      // global wave-size multiplier
+const LOSE_HP = 50;        // body health below this loses
+const SIZE_MUL = 1.05;      // global outbreak-size multiplier
 
 const UT = {
-  neut:{name:'Neutrophil', color:'#6ee7ff', cost:15, build:0.8, life:25, speed:110, kill:1.5, size:3,   key:'1',
+  neut:{name:'Neutrophil', color:'#6ee7ff', cost:15, build:0.5, life:20, speed:250, kill:1.5, size:3,   key:'1',
         desc:'Cheap and fast, but dies quickly.'},
-  mac: {name:'Macrophage', color:'#b6f36b', cost:30, build:1.5, life:70, speed:50,  kill:1.3, size:5.5, key:'2',
+  mac: {name:'Macrophage', color:'#b6f36b', cost:30, build:0.9, life:50, speed:130, kill:1.3, size:5.5, key:'2',
         desc:'Slow, but lasts a long time. Good for guarding an organ.'},
-  kt:  {name:'Killer T',   color:'#f4f4ff', cost:45, build:2.0, life:50, speed:80,  kill:5.0, size:4,   key:'3', locked:true,
+  kt:  {name:'Killer T',   color:'#f4f4ff', cost:45, build:1.2, life:40, speed:190, kill:5.0, size:4,   key:'3', locked:true,
         desc:'The strongest killer. Unlocks when Memory is full.'},
 };
 
-// Each disease: waves hit `targets` in order (looping), growing by size[1] each wave.
+// Each disease: outbreaks land in a random organ from `targets`, growing by size[1] each time.
+// After the last outbreak comes one boss virus.
 // `tropism` = which organs it can grow in, and how fast. One special trait each.
 const DISEASES = {
-  cold: { pressure:1.4,
+  cold: { pressure:1.9,
     name:'Common Cold', diff:'Easy', diffColor:'#3dffb0',
-    about:'Hits the nose over and over. Rarely goes deeper.',
-    trait:'Mild: does little damage.',
-    waves:7, targets:['nose','nose','lungs'], size:[13,6],
-    tropism:{nose:1, lungs:0.3}, r:0.075, vir:0.7, spread:0.36,
+    about:'Lives in the nose.',
+    trait:'Sneezes: an infected Nose blasts virus into two random organs every few seconds.',
+    outbreaks:9, targets:['nose','nose','nose','lungs'], size:[10,4],
+    tropism:{nose:1.1, lungs:0.5, brain:0.3, skin:0.4, heart:0.3}, r:0.08, vir:0.8, spread:0.3,
+    sneeze:true,
   },
-  chickenpox: { pressure:1.6,
+  chickenpox: { pressure:1.4,
     name:'Chickenpox', diff:'Easy', diffColor:'#3dffb0',
     about:'An itchy rash across the skin.',
-    trait:'Comes back as shingles: the last wave is three times bigger.',
-    waves:7, targets:['nose','skin','skin'], size:[12,6],
-    tropism:{nose:0.6, skin:1.1, lungs:0.3}, r:0.075, vir:0.7, spread:0.4,
-    lastWaveMul:3,
+    trait:'Breaks out in spots: every outbreak lands in three organs at once.',
+    outbreaks:9, targets:['nose','skin','skin','gut','liver'], size:[12,4],
+    tropism:{nose:0.7, skin:1.2, gut:0.5, liver:0.4}, r:0.08, vir:1.6, spread:0.3,
+    scatter:3, causes:{skin:['Your little cousin with spots gave you a hug.']},
   },
-  rota: { pressure:1.8,
+  rota: { pressure:5.0,
     name:'Rotavirus', diff:'Easy', diffColor:'#3dffb0',
     about:'A stomach bug that camps in the gut.',
-    trait:'While the Gut is infected, Energy refills at half speed.',
-    waves:7, targets:['gut','gut','liver'], size:[13,6],
-    tropism:{gut:1.1, liver:0.3}, r:0.08, vir:0.8, spread:0.4,
-    drainsEnergy:true,
+    trait:'Flush: every 9 seconds the Gut flushes out, sweeping your cells there back to the Bone Marrow.',
+    outbreaks:9, targets:['gut','gut','liver'], size:[13,5],
+    tropism:{gut:1.2, liver:0.4, marrow:0.3}, r:0.09, vir:1.6, spread:0.4,
+    flush:9, causes:{gut:['You changed a diaper and skipped washing up.']},
   },
-  hepb: { pressure:2.0,
-    name:'Hepatitis B', diff:'Easy', diffColor:'#3dffb0',
-    about:'Slowly grinds down the liver.',
-    trait:'No organ heals while this virus is anywhere in the body.',
-    waves:8, targets:['liver','liver','gut'], size:[14,7],
-    tropism:{liver:1.2, gut:0.4, marrow:0.3}, r:0.08, vir:0.8, spread:0.5,
-    noHeal:true,
+  hepb: { pressure:1.9,
+    name:'Hepatitis B', diff:'Medium', diffColor:'#ffd84d',
+    about:'Hides deep in the liver.',
+    trait:'Relapses: when you clear the Liver, the virus comes back 8 seconds later unless a cell is still guarding it.',
+    outbreaks:9, targets:['liver','liver','gut','heart'], size:[13,5],
+    tropism:{liver:1.3, gut:0.5, heart:0.4, marrow:0.3}, r:0.09, vir:0.9, spread:0.5,
+    relapse:'liver',
   },
-  flu: { pressure:1.3,
+  flu: { pressure:1.25,
     name:'Influenza', diff:'Medium', diffColor:'#ffd84d',
     about:'Attacks the nose and lungs. The lungs are vital.',
-    trait:'Mutates at wave 5: your Killer T cells stop recognizing it and Memory drops by half.',
-    waves:8, targets:['nose','lungs','nose','lungs','lungs'], size:[14,7],
-    tropism:{nose:0.8, lungs:1.2, heart:0.3, brain:0.15}, r:0.09, vir:0.8, spread:0.6,
-    forget:{wave:5, to:0.5, title:'The flu mutated!'},
+    trait:'Shape-shifts: every 2 outbreaks it mutates and shrugs off one cell type. Change up what you build.',
+    outbreaks:9, targets:['nose','lungs','nose','lungs','lungs'], size:[13,5],
+    tropism:{nose:0.9, lungs:1.2, heart:0.3, brain:0.2}, r:0.09, vir:0.9, spread:0.6,
+    shift:2,
   },
-  measles: { pressure:1.4,
+  measles: { pressure:1.5,
     name:'Measles', diff:'Medium', diffColor:'#ffd84d',
     about:'Hugely contagious. Lands in the airways and the skin.',
-    trait:'Immune amnesia: at wave 4 it erases your Memory completely, and your Killer T cells forget it.',
-    waves:8, targets:['nose','lungs','skin','nose'], size:[14,7],
-    tropism:{nose:0.9, lungs:1, skin:1, heart:0.2}, r:0.09, vir:0.8, spread:0.6,
-    forget:{wave:4, to:0, title:'Immune amnesia!'},
+    trait:'Immune amnesia: every 3rd outbreak wipes your Memory and kills every Killer T cell.',
+    outbreaks:9, targets:['nose','lungs','skin','nose'], size:[13,5],
+    tropism:{nose:0.9, lungs:1, skin:1, heart:0.2}, r:0.09, vir:0.9, spread:0.6,
+    forget:{every:3, to:0, title:'Immune amnesia!'},
   },
-  covid: { pressure:1.25,
-    name:'COVID-19', diff:'Medium', diffColor:'#ffd84d',
-    about:'Starts in the airways, then reaches the heart and gut.',
-    trait:'Spreads between organs twice as fast as other viruses.',
-    waves:8, targets:['nose','lungs','nose','heart','lungs'], size:[13,6],
-    tropism:{nose:0.8, lungs:1.1, heart:0.6, gut:0.5, brain:0.15}, r:0.085, vir:0.8, spread:1.2,
+  covid: { pressure:1.8,
+    name:'COVID-19', diff:'Hard', diffColor:'#ff8f4d',
+    about:'Starts in the airways, then turns up anywhere.',
+    trait:'Airborne: it spreads to any organ in the body, not just the ones next door.',
+    outbreaks:9, targets:['nose','lungs','nose','heart','lungs'], size:[13,5],
+    tropism:{nose:0.8, lungs:1.1, heart:0.6, gut:0.5, brain:0.3, skin:0.3}, r:0.09, vir:0.9, spread:0.9,
+    airborne:true,
   },
-  polio: { pressure:1.8,
+  polio: { pressure:2.25,
     name:'Polio', diff:'Hard', diffColor:'#ff8f4d',
     about:'Enters through the gut, then attacks nerves and the brain.',
-    trait:'Weakens nerves: all your cells move 30% slower.',
-    waves:8, targets:['gut','gut','marrow','gut','brain'], size:[14,7],
-    tropism:{gut:1.1, marrow:0.6, liver:0.4, brain:0.8, nose:0.3}, r:0.09, vir:0.9, spread:0.6,
-    slowCells:true,
+    trait:'Paralysis: each outbreak cuts a vessel for 20 seconds. Your cells have to go the long way.',
+    outbreaks:9, targets:['gut','gut','marrow','liver','brain'], size:[13,5],
+    tropism:{gut:1.1, marrow:0.6, liver:0.5, brain:0.8, nose:0.3}, r:0.09, vir:0.9, spread:0.6,
+    paralyze:20, causes:{gut:['You drank water from an old well.']},
   },
-  pox: { pressure:1.4,
+  pox: { pressure:2.0,
     name:'Smallpox', diff:'Hard', diffColor:'#ff8f4d',
     about:'Strikes all over the body, the skin worst of all.',
-    trait:'Stealthy: you can’t see virus numbers or the next target until 1:00.',
-    waves:8, targets:['nose','skin','liver','gut','skin','lungs','skin','nose'], size:[14,7],
+    trait:'Stealthy: until 0:45 you can’t see virus numbers or where outbreaks land.',
+    outbreaks:9, targets:['nose','skin','liver','gut','skin','lungs','skin','nose'], size:[13,5],
     tropism:{nose:0.7, lungs:0.5, skin:1.3, liver:0.6, gut:0.5}, r:0.09, vir:1.0, spread:0.55,
-    hiddenUntil:60,
+    hiddenUntil:45,
   },
-  rabies: { pressure:1.2,
+  rabies: { pressure:1.78,
     name:'Rabies', diff:'Hard', diffColor:'#ff8f4d',
     about:'Enters through a bite in the skin.',
-    trait:'Climbs the nerves: it only ever spreads toward the Brain.',
-    waves:8, targets:['skin','skin','gut','skin','nose'], size:[14,7],
-    tropism:{skin:0.8, heart:0.6, lungs:0.6, nose:0.7, gut:0.6, brain:1.3}, r:0.09, vir:1.0, spread:0.8,
-    seeksBrain:true,
+    trait:'Climbs the nerves: it only spreads toward the Brain, and its boss always goes for the Brain.',
+    outbreaks:9, targets:['skin','skin','gut','skin','nose'], size:[13,5],
+    tropism:{skin:0.8, heart:0.6, lungs:0.6, nose:0.7, gut:0.6, brain:1.4}, r:0.09, vir:1.0, spread:0.9,
+    seeksBrain:true, causes:{skin:['A bat bit you while you slept.', 'You tried to pet a wild raccoon.']},
   },
-  hiv: { pressure:1.13,
+  hiv: { pressure:1.98,
     name:'HIV', diff:'Very hard', diffColor:'#ff2d55',
     about:'Hides in the blood and bone marrow.',
-    trait:'Hunts your best defenders: Killer T cells die three times faster in infected organs.',
-    waves:8, targets:['marrow','gut','marrow','liver','heart'], size:[14,7],
-    tropism:{marrow:1, gut:0.8, liver:0.7, heart:0.5, brain:0.2}, r:0.09, vir:1.0, spread:0.6,
-    eats:'kt',
+    trait:'Hijacks the factory: while the Bone Marrow is infected, half the cells you build turn into virus.',
+    outbreaks:9, targets:['gut','marrow','liver','heart','marrow'], size:[13,5],
+    tropism:{marrow:1.1, gut:0.8, liver:0.7, heart:0.5, brain:0.2}, r:0.09, vir:1.0, spread:0.6,
+    hijack:true,
   },
-  ebola: { pressure:1.5,
+  ebola: { pressure:1.95,
     name:'Ebola', diff:'Very hard', diffColor:'#ff2d55',
     about:'Enters through the skin and races for the liver and gut.',
-    trait:'Macrophages die three times faster in infected organs.',
-    waves:8, targets:['skin','liver','gut','skin','liver','heart','gut','liver'], size:[14,7],
-    tropism:{skin:0.7, liver:1.2, gut:0.9, heart:0.4, marrow:0.4}, r:0.09, vir:1.1, spread:0.6,
-    eats:'mac',
+    trait:'Hemorrhage: infected organs lose health three times as fast. Every second counts.',
+    outbreaks:9, targets:['skin','liver','gut','skin','liver','heart','gut','liver'], size:[12,5],
+    tropism:{skin:0.7, liver:1.2, gut:0.9, heart:0.5, marrow:0.4}, r:0.09, vir:1.0, spread:0.6,
+    bleed:3, causes:{skin:['You cared for a sick relative without gloves.']},
   },
 };
-// `pressure` scales growth and wave size: the main difficulty knob.
-// `split` = chance a wave hits both forecast organs, from wave `splitFrom` on.
-const SPLIT_BY_DIFF = {'Easy':[0.25,5], 'Medium':[0.4,3], 'Hard':[0.5,3], 'Very hard':[0.6,2]};
+// `pressure` scales growth and outbreak size: the main difficulty knob.
 for (const k in DISEASES) {
-  const [split, splitFrom] = SPLIT_BY_DIFF[DISEASES[k].diff];
-  const d = Object.assign(DISEASES[k], {interval:20, first:10, split, splitFrom}, DISEASES[k]);
-  d.r *= d.pressure; d.size = d.size.map(x => x*d.pressure*WAVE_MUL);
+  const d = Object.assign(DISEASES[k], {first:7}, DISEASES[k]);
+  d.r *= d.pressure; d.size = d.size.map(x => x*d.pressure*SIZE_MUL);
 }
-const REVEAL = 7;          // seconds before impact the real target is shown
-const SPLIT_SHARE = 0.65;  // each half of a split wave is this much of a full wave
+const FLIGHT = 0.5;        // outbreak virus flies in at this fraction of the way per second (~2s warning)
+const BOSS_SPEED = 40;     // boss virus speed along vessels
+const BOSS_STOP = 3.5;      // seconds the boss sits in each organ it passes
 
-// Each wave: two candidate organs are forecast; it hits one of them, or both if split.
-function planWaves(d) {
-  const pool = [...new Set(d.targets)], plan = [];
-  for (let i = 0; i < d.waves; i++) {
-    const a = d.targets[Math.floor(Math.random()*d.targets.length)];
-    const others = pool.filter(k => k !== a);
-    const b = others[Math.floor(Math.random()*others.length)];
-    const last = i === d.waves - 1 && d.diff !== 'Easy';
-    const split = last || (i >= d.splitFrom - 1 && Math.random() < d.split);
-    plan.push({cands: Math.random() < 0.5 ? [a,b] : [b,a], hit: split ? [a,b] : [a]});
-  }
-  return plan;
-}
+// What let an outbreak in, by the organ it lands in. A disease can add its own lines.
+const CAUSES = {
+  nose:   ['Someone sneezed right in your face.', 'You touched your face after riding the bus.', 'You shared a water bottle at practice.'],
+  lungs:  ['You sat next to someone coughing for a whole flight.', 'You went to a packed concert.', 'Your roommate coughed all night.'],
+  skin:   ["You didn't wash your hands.", "You scraped your knee and didn't clean it.", 'You picked at a scab.'],
+  gut:    ['You ate gas-station sushi.', 'You drank straight from a stream.', "You didn't wash your hands before dinner."],
+  liver:  ['You ate raw oysters from a sketchy stand.', 'You shared a razor.', 'You got a tattoo at a party.'],
+  heart:  ['A small cut let the virus into your blood.', 'You shared a drink with someone who was sick.'],
+  brain:  ['The virus crept up your spinal cord.'],
+  marrow: ['You shared a needle.', "You got a blood transfusion that wasn't screened."],
+};
+
+// One ability per organ. Costs Energy, then has a cooldown. A badly hurt organ can't use it.
+const ABIL = {
+  lungs: {name:'Cough',  key:'q', cost:20, cd:15,         desc:'Blasts out half the virus in the Lungs and Nose.'},
+  heart: {name:'Pump',   key:'w', cost:15, cd:15, dur:6,  desc:'Cells move twice as fast for 6s.'},
+  liver: {name:'Filter', key:'e', cost:25, cd:20, dur:6,  desc:'For 6s, kills virus in the Liver and every organ next to it.'},
+  skin:  {name:'Seal',   key:'r', cost:30, cd:30, dur:6, desc:'For 6s, no virus can get into any organ. Use it right after an outbreak warning.'},
+};
+const ABIL_MIN_HP = 25;
 
 // ---------- State ----------
 let G = null, seenHelp = false;
@@ -337,14 +357,16 @@ function newGame(did) {
   G = {
     did, d, t:0, energy:60, memory:0, fever:false, speed:1, paused:false, over:false,
     units:[], virions:[], sparks:[], nodes:{}, uid:0, selected:null, dispatch:null, rally:null,
-    wave:0, nextWave:d.first, plan:planWaves(d), revealedWave:-1, stats:{built:0, killed:0}, panelSig:'',
+    out:0, nextOut:d.first, lastCause:'', boss:null, bossDone:false, bossKilled:false,
+    cd:{}, until:{}, stats:{built:0, killed:0, wipes:0, bestCombo:0}, panelSig:'',
+    floats:[], rings:[], bubbles:[], sneeze:0, flushAt:d.flush || 0, relapseAt:0, resist:null, blocked:{}, nextBubble:10, combo:0, lastWipe:-99, shake:0, flash:null,
   };
-  for (const k in NODES) G.nodes[k] = {V:0, hp:100, queue:[], buildT:0, seed:{}};
+  for (const k in NODES) G.nodes[k] = {V:0, hp:100, queue:[], buildT:0, seed:{}, src:{}, peak:0};
+  for (const k in ABIL) { G.cd[k] = 0; G.until[k] = 0; }
   $('#log').innerHTML = '';
   $('#menu').classList.add('hide');
   $('#endov').classList.add('hide');
-  const c0 = G.plan[0].cands;
-  banner(d.name, `The first wave hits the ${NODES[c0[0]].name} or the ${NODES[c0[1]].name} in ${d.first} seconds.`);
+  banner(d.name, `Get some cells ready. The first outbreak comes in a few seconds.`);
   if (!seenHelp) { seenHelp = true; openHelp(); }
 }
 
@@ -355,10 +377,16 @@ const unitsAt = k => G.units.filter(u => !u.dead && u.node === k);
 const fmtTime = t => Math.floor(t/60) + ':' + String(Math.floor(t%60)).padStart(2,'0');
 const avgHp = () => { let s = 0, c = 0; for (const k in G.nodes) { s += G.nodes[k].hp; c++; } return s/c; };
 const hpColor = h => `hsl(${Math.max(0,Math.min(120,h*1.2))},90%,58%)`;
-const revealed = () => G.wave < G.d.waves && G.nextWave - G.t <= REVEAL;
-const names = ks => ks.map(k => NODES[k].name).join(' + ');
-const waveSize = i => (G.d.size[0] + G.d.size[1]*i)*(G.d.lastWaveMul && i === G.d.waves - 1 ? G.d.lastWaveMul : 1);
+const outSize = i => G.d.size[0] + G.d.size[1]*i;
 const ktUnlocked = () => G.memory >= 1;
+const active = k => G.t < G.until[k];
+const pick = a => a[Math.floor(Math.random()*a.length)];
+function pickCause(k) {
+  const pool = [...(CAUSES[k] || []), ...((G.d.causes || {})[k] || [])];
+  let c = pick(pool);
+  if (c === G.lastCause && pool.length > 1) c = pool.find(x => x !== c);
+  return G.lastCause = c;
+}
 
 function findPath(a, b) {
   if (a === b) return [a];
@@ -371,7 +399,7 @@ function findPath(a, b) {
     if (dist[u] === Infinity) break;
     Q.delete(u);
     if (u === b) break;
-    for (const v of ADJ[u]) if (dist[u] + elen(u,v) < dist[v]) { dist[v] = dist[u] + elen(u,v); prev[v] = u; }
+    for (const v of ADJ[u]) if (!(G && blockedEdge(u, v)) && dist[u] + elen(u,v) < dist[v]) { dist[v] = dist[u] + elen(u,v); prev[v] = u; }
   }
   if (dist[b] === Infinity) return null;
   const p = [b];
@@ -380,6 +408,12 @@ function findPath(a, b) {
 }
 
 function spawn(type) {
+  if (G.d.hijack && G.nodes.marrow.V > 10 && Math.random() < 0.5) {
+    G.nodes.marrow.V += 6;
+    float(NODES.marrow.x, NODES.marrow.y - 30, 'HIJACKED!', '#ff6b88');
+    sfx('deny');
+    return;
+  }
   const u = {id:++G.uid, type, node:'marrow', path:null, seg:0, prog:0, age:0, life:UT[type].life, ph:Math.random()*6.28};
   G.units.push(u);
   G.stats.built++;
@@ -409,6 +443,7 @@ function build(type) {
   if (!G || G.over || buildBlock(type)) return false;
   G.energy -= UT[type].cost;
   G.nodes.marrow.queue.push(type);
+  sfx('build');
   return true;
 }
 
@@ -419,13 +454,173 @@ function toggleFever() {
   G.fever = true; log('Fever up.');
 }
 
+function abilBlock(k) {
+  if (G.t < G.cd[k]) return `Ready in ${Math.ceil(G.cd[k] - G.t)}s`;
+  if (G.nodes[k].hp < ABIL_MIN_HP) return `The ${NODES[k].name} is too hurt`;
+  if (G.energy < ABIL[k].cost) return 'Not enough Energy';
+  return null;
+}
+function useAbil(k) {
+  if (!G || G.over) return false;
+  const a = ABIL[k], why = abilBlock(k);
+  if (why) { log(`${a.name}: ${why}.`); sfx('deny'); return false; }
+  G.energy -= a.cost; G.cd[k] = G.t + a.cd;
+  if (a.dur) G.until[k] = G.t + a.dur;
+  if (k === 'lungs') {
+    for (const o of ['lungs','nose']) {
+      const n = G.nodes[o], gone = n.V/2;
+      n.V -= gone;
+      for (let i = 0; i < Math.min(30, gone); i++) {
+        const ang = Math.random()*6.28, r = 10 + Math.random()*40;
+        G.sparks.push({x:NODES[o].x + Math.cos(ang)*r, y:NODES[o].y + Math.sin(ang)*r, life:0.6, max:0.6});
+      }
+    }
+  }
+  log(`${a.name}!`);
+  sfx('abil'); shake(k === 'lungs' ? 8 : 3);
+  ring(NODES[k].x, NODES[k].y, '94,224,255', k === 'skin' ? 160 : 110);
+  float(NODES[k].x, NODES[k].y - 30, a.name.toUpperCase() + '!', '#5ee0ff', true);
+  return true;
+}
+
+// ---------- Sound & effects ----------
+let AC = null, muted = false, lastPop = 0;
+try { muted = localStorage.getItem('pd-mute') === '1'; } catch (e) {}
+// [wave, start Hz, end Hz, seconds, volume, delay]
+const SFX = {
+  pop:    [['triangle', 900, 1500, 0.05, 0.035]],
+  build:  [['sine', 520, 820, 0.07, 0.06]],
+  deny:   [['square', 160, 120, 0.09, 0.04]],
+  alarm:  [['sawtooth', 520, 380, 0.16, 0.06], ['sawtooth', 520, 380, 0.16, 0.06, 0.2]],
+  land:   [['sine', 170, 45, 0.4, 0.3]],
+  block:  [['triangle', 300, 900, 0.2, 0.1]],
+  wipe:   [['triangle', 660, 660, 0.08, 0.09], ['triangle', 880, 880, 0.08, 0.09, 0.07], ['triangle', 1320, 1320, 0.18, 0.09, 0.14]],
+  bubble: [['sine', 600, 1600, 0.14, 0.12]],
+  abil:   [['square', 180, 900, 0.25, 0.05], ['sine', 300, 1200, 0.3, 0.08]],
+  unlock: [['triangle', 523, 523, 0.12, 0.1], ['triangle', 659, 659, 0.12, 0.1, 0.12], ['triangle', 784, 784, 0.12, 0.1, 0.24], ['triangle', 1047, 1047, 0.3, 0.1, 0.36]],
+  boss:   [['sawtooth', 120, 50, 1.1, 0.14], ['sawtooth', 90, 40, 1.1, 0.1, 0.3]],
+  bossdie:[['sawtooth', 320, 40, 0.9, 0.18], ['triangle', 880, 1760, 0.5, 0.1, 0.15]],
+  win:    [['triangle', 523, 523, 0.15, 0.12], ['triangle', 659, 659, 0.15, 0.12, 0.15], ['triangle', 784, 784, 0.15, 0.12, 0.3], ['triangle', 1047, 1047, 0.6, 0.12, 0.45]],
+  lose:   [['sawtooth', 300, 60, 1.4, 0.12], ['triangle', 200, 50, 1.4, 0.12, 0.1]],
+};
+function sfx(kind) {
+  if (muted || !SFX[kind]) return;
+  try {
+    AC = AC || new (window.AudioContext || window.webkitAudioContext)();
+    if (AC.state === 'suspended') AC.resume();
+    const t0 = AC.currentTime;
+    for (const [type, f0, f1, dur, vol, delay = 0] of SFX[kind]) {
+      const o = AC.createOscillator(), g = AC.createGain(), t = t0 + delay;
+      o.type = type;
+      o.frequency.setValueAtTime(f0, t); o.frequency.exponentialRampToValueAtTime(f1, t + dur);
+      g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol, t + 0.01); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+      o.connect(g).connect(AC.destination); o.start(t); o.stop(t + dur + 0.02);
+    }
+  } catch (e) {}
+}
+function toggleMute() {
+  muted = !muted;
+  try { localStorage.setItem('pd-mute', muted ? '1' : '0'); } catch (e) {}
+  $('#b-mute').textContent = muted ? 'Muted' : 'Sound';
+}
+// floating text, shockwave rings, screen shake and flashes
+function float(x, y, text, color, big) { G.floats.push({x, y, text, color, big, life:1.6, max:1.6}); }
+function ring(x, y, color, size) { G.rings.push({x, y, color, size:size || 90, life:0.7, max:0.7}); }
+function shake(a) { G.shake = Math.max(G.shake, a); }
+function flash(color, a) { G.flash = {color, a}; }
+
+function gainEnergy(amt) { G.energy = Math.min(150, G.energy + amt); }
+
+// Clearing every last virus out of an organ pays Energy. Chain them for a combo.
+function wipe(k, peak) {
+  G.combo = G.t - G.lastWipe < 10 ? G.combo + 1 : 1;
+  G.lastWipe = G.t;
+  G.stats.wipes++; G.stats.bestCombo = Math.max(G.stats.bestCombo, G.combo);
+  const bonus = Math.min(20, 2 + 3*G.combo + Math.round(peak/30));
+  gainEnergy(bonus);
+  const P = NODES[k];
+  float(P.x, P.y - 20, G.combo > 1 ? `COMBO ×${G.combo}!  +${bonus}` : `WIPED OUT!  +${bonus}`, '#3dffb0', G.combo > 1);
+  ring(P.x, P.y, '61,255,176', 80 + 15*G.combo);
+  sfx('wipe');
+}
+
+// Each disease's signature move.
+function stepTraits(dt) {
+  const d = G.d, N = G.nodes;
+  if (d.sneeze) {
+    // an infected Nose winds up, then sneezes half its virus into two other organs
+    if (N.nose.V > 12) G.sneeze += dt; else G.sneeze = Math.max(0, G.sneeze - dt);
+    if (G.sneeze >= 5) {
+      G.sneeze = 0;
+      const amt = N.nose.V*0.5, P = NODES.nose;
+      N.nose.V -= amt;
+      const opts = Object.keys(d.tropism).filter(o => o !== 'nose'), to = [pick(opts)];
+      while (to.length < 2) { const o = pick(opts); if (o !== to[0]) to.push(o); }
+      for (const o of to) fling(o, amt/2, P, 'nose', false);
+      float(P.x, P.y - 30, 'ACHOO!', '#ff6b88', true);
+      sfx('alarm'); shake(6); ring(P.x, P.y, '255,45,85', 100);
+    }
+  }
+  if (d.flush && G.t >= G.flushAt) {
+    // the Gut flushes: cells there get swept back to the Bone Marrow, and some virus with them
+    G.flushAt = G.t + d.flush;
+    const P = NODES.gut, here = unitsAt('gut');
+    send(here, 'marrow');
+    float(P.x, P.y - 30, here.length ? `FLUSH! ${here.length} cells swept away` : 'FLUSH!', '#8fd3ff', true);
+    sfx('block'); shake(5); ring(P.x, P.y, '143,211,255', 120);
+  }
+  if (d.relapse) {
+    const k = d.relapse, n = N[k], P = NODES[k];
+    if (n.V > 0) G.relapseAt = 0;
+    else if (n.peak === 0 && G.hadVirus) { G.relapseAt = G.t + 8; G.hadVirus = false; }
+    if (n.V > 5) G.hadVirus = true;
+    if (G.relapseAt && G.t >= G.relapseAt) {
+      G.relapseAt = 0;
+      if (unitsAt(k).length || G.bossDone) { float(P.x, P.y - 30, 'CURED', '#3dffb0', true); sfx('wipe'); }
+      else { n.V += 30; n.src.relapse = (n.src.relapse || 0) + 30; float(P.x, P.y - 30, 'RELAPSE!', '#ff6b88', true); sfx('land'); shake(7); ring(P.x, P.y, '255,45,85', 110); }
+    }
+  }
+}
+
+// Countdown labels under organs, so you can see each disease's move coming.
+function traitTags() {
+  const d = G.d, N = G.nodes, tags = [];
+  if (d.sneeze && G.sneeze > 0) tags.push(['nose', `SNEEZE IN ${Math.ceil(5 - G.sneeze)}`]);
+  if (d.flush && G.flushAt - G.t < 5) tags.push(['gut', `FLUSH IN ${Math.ceil(G.flushAt - G.t)}`]);
+  if (d.relapse && G.relapseAt) tags.push([d.relapse, unitsAt(d.relapse).length ? `GUARDED ${Math.ceil(G.relapseAt - G.t)}` : `RELAPSE IN ${Math.ceil(G.relapseAt - G.t)}`]);
+  if (d.hijack && N.marrow.V > 10) tags.push(['marrow', 'HIJACKED']);
+  return tags;
+}
+
+function stepBubbles(dt) {
+  if (G.t >= G.nextBubble) {
+    const [a, b] = pick(EDGES), fwd = Math.random() < 0.5;
+    G.bubbles.push({a:fwd ? a : b, b:fwd ? b : a, prog:0.1, life:9});
+    G.nextBubble = G.t + 14 + Math.random()*10;
+  }
+  for (const B of G.bubbles) { B.life -= dt; B.prog = Math.min(0.9, B.prog + 18*dt/elen(B.a, B.b)); }
+  G.bubbles = G.bubbles.filter(B => B.life > 0);
+}
+const bubblePos = B => { const A = NODES[B.a], C = NODES[B.b]; return {x:A.x + (C.x - A.x)*B.prog, y:A.y + (C.y - A.y)*B.prog}; };
+function popBubble(p) {
+  const i = G.bubbles.findIndex(B => { const q = bubblePos(B); return Math.hypot(q.x - p.x, q.y - p.y) < 22; });
+  if (i < 0) return false;
+  const q = bubblePos(G.bubbles[i]);
+  G.bubbles.splice(i, 1);
+  gainEnergy(12);
+  float(q.x, q.y - 10, '+12 Energy', '#ffd84d');
+  ring(q.x, q.y, '255,216,77', 50);
+  sfx('bubble');
+  return true;
+}
+
 // ---------- Messages ----------
 let bannerTimer = null;
-function banner(t, p) {
+function banner(t, p, cls) {
   $('#bn-t').textContent = t; $('#bn-p').textContent = p;
-  $('#banner').classList.add('show');
+  $('#banner').className = 'show' + (cls ? ' ' + cls : '');
   clearTimeout(bannerTimer);
-  bannerTimer = setTimeout(() => $('#banner').classList.remove('show'), 5000);
+  bannerTimer = setTimeout(() => $('#banner').classList.remove('show'), 5500);
 }
 function log(msg) {
   const el = document.createElement('div');
@@ -437,44 +632,137 @@ function log(msg) {
 }
 
 // ---------- Simulation ----------
-function launchWave() {
-  const d = G.d, i = G.wave, hit = G.plan[i].hit;
-  const amt = waveSize(i)*(hit.length > 1 ? SPLIT_SHARE : 1);
-  // a swarm of virions flies in from outside the body
-  for (const k of hit) {
-    const P = NODES[k], n = Math.min(18, Math.ceil(amt/3));
-    for (let j = 0; j < n; j++) {
-      const a = Math.random()*Math.PI*2;
-      G.virions.push({x0:P.x + Math.cos(a)*260, y0:P.y + Math.sin(a)*260, to:k, prog:-j*0.03, amt:amt/n, wave:true});
-    }
+// Outbreaks come without warning: a swarm of virions flies in from outside the body.
+// A swarm of virions flying in to organ k, from far outside or from point `from`.
+function fling(k, amt, from, src, first) {
+  const P = NODES[k], n = Math.min(18, Math.ceil(amt/3));
+  for (let j = 0; j < n; j++) {
+    const a = Math.random()*Math.PI*2, x0 = from ? from.x : P.x + Math.cos(a)*260, y0 = from ? from.y : P.y + Math.sin(a)*260;
+    G.virions.push({x0, y0, to:k, prog:-j*0.03, amt:amt/n, wave:true, src, first:first && j === 0});
   }
-  G.wave++;
-  // waves come a little faster as the infection takes hold
-  G.nextWave = G.t + Math.max(13, d.interval - 0.7*G.wave);
-  log(hidden() ? `Wave ${G.wave} of ${d.waves} has landed somewhere.` : `Wave ${G.wave} of ${d.waves} is hitting the ${names(hit)}.`);
-  if (d.forget && G.wave === d.forget.wave) {
+}
+const blockedEdge = (a, b) => G.blocked[a+'|'+b] > G.t;
+const UNIT_NAMES = {neut:'Neutrophils', mac:'Macrophages', kt:'Killer T cells'};
+
+function outbreak() {
+  const d = G.d, amt = outSize(G.out);
+  // most diseases hit one organ; Chickenpox scatters over several
+  const spots = [];
+  while (spots.length < (d.scatter || 1)) {
+    const k = pick(d.targets);
+    if (!spots.includes(k)) spots.push(k);
+  }
+  for (const k of spots) fling(k, amt/spots.length*1.2, null, 'out', true);
+  G.out++;
+  // they come faster as the infection takes hold, at uneven times
+  G.nextOut = G.t + Math.max(9, 14 - 0.5*G.out)*(0.8 + 0.4*Math.random());
+  const k = spots[0], P = NODES[k], cause = pickCause(k);
+  const names = spots.map(o => NODES[o].name), where = names.length > 1 ? names.slice(0, -1).join(', ') + ' and ' + names[names.length - 1] : 'the ' + names[0];
+  sfx('alarm');
+  if (hidden()) banner('Outbreak!', `${cause} You can't tell where it went.`, 'out');
+  else banner(`Outbreak in ${where}!`, cause, 'out');
+  log(`Outbreak ${G.out} of ${d.outbreaks}${hidden() ? '' : ': ' + names.join(', ')}.`);
+
+  if (d.forget && G.out % d.forget.every === 0) {
     let lost = 0;
     for (const u of G.units) if (u.type === 'kt') { u.dead = true; lost++; }
     G.memory = Math.min(G.memory, d.forget.to);
-    banner(d.forget.title, `${lost ? lost + ' Killer T cells forgot the virus. ' : ''}Memory dropped to ${Math.round(G.memory*100)}%. Kill more virus to unlock Killer T again.`);
+    // shown after the outbreak message has had its turn
+    G.later = {at:G.t + 3, t:d.forget.title, p:`${lost ? lost + ' Killer T cells forgot the virus. ' : ''}Memory wiped. Kill more virus to unlock Killer T again.`};
+    flash('190,120,255', 0.35); shake(8);
+  }
+  if (d.shift && G.out % d.shift === 0) {
+    G.resist = pick(Object.keys(UT).filter(t => t !== G.resist));
+    G.later = {at:G.t + 3, t:'The flu mutated!', p:`${UNIT_NAMES[G.resist]} barely hurt it now. Build something else.`};
+    flash('190,120,255', 0.25);
+  }
+  if (d.paralyze) {
+    // cut a vessel, but never one that would split the body in two
+    const opts = EDGES.filter(([a, b]) => !blockedEdge(a, b));
+    for (let tries = 0; tries < 20; tries++) {
+      const [a, b] = pick(opts);
+      G.blocked[a+'|'+b] = G.blocked[b+'|'+a] = G.t + d.paralyze;
+      if (Object.keys(NODES).every(o => findPath('marrow', o))) {
+        const A = NODES[a], B = NODES[b];
+        float((A.x + B.x)/2, (A.y + B.y)/2, 'PARALYZED!', '#c9a0ff');
+        break;
+      }
+      G.blocked[a+'|'+b] = G.blocked[b+'|'+a] = 0;
+    }
   }
 }
+
+// The boss walks from organ to organ toward the farthest vital organ, stopping in each.
+function launchBoss() {
+  const d = G.d, entry = pick(d.targets);
+  let target = d.seeksBrain && entry !== 'brain' ? 'brain' : null;
+  if (!target) {
+    let best = -1;
+    for (const k of VITAL) if (k !== entry) { const L = findPath(entry, k).length; if (L > best) { best = L; target = k; } }
+  }
+  const hp = outSize(d.outbreaks)*1.5*(d.bossMul || 1);
+  G.boss = {path:findPath(entry, target), seg:0, prog:0, at:entry, wait:BOSS_STOP + 2, hp, max:hp};
+  G.out++;
+  sfx('boss'); shake(10); flash('255,45,85', 0.25);
+  banner(`Boss virus in the ${NODES[entry].name}!`, `${pickCause(entry)} It's heading for the ${NODES[target].name}. Your cells can hurt it while it stops in an organ.`, 'out');
+}
+
+function stepBoss(dt, killAt) {
+  const B = G.boss, N = G.nodes;
+  if (B.at) {
+    N[B.at].V += 2.5*dt; N[B.at].src.boss = (N[B.at].src.boss || 0) + 2.5*dt;
+    B.hp -= killAt[B.at]*dt;
+    if (killAt[B.at] > 0) B.hitT = G.t;
+    if (B.hp <= 0) {
+      const P = NODES[B.at];
+      for (let i = 0; i < 60; i++) {
+        const a = Math.random()*6.28, r = Math.random()*50;
+        G.sparks.push({x:P.x + Math.cos(a)*r, y:P.y + Math.sin(a)*r, life:0.9, max:0.9});
+      }
+      G.boss = null; G.bossDone = G.bossKilled = true;
+      G.memory = Math.min(1, G.memory + 0.3);
+      gainEnergy(50);
+      sfx('bossdie'); shake(16); flash('255,255,255', 0.5);
+      ring(P.x, P.y, '255,240,200', 200);
+      float(P.x, P.y - 30, 'BOSS DESTROYED!  +50', '#fff3c4', true);
+      banner('Boss destroyed!', 'Now clear out the virus that is left.');
+      return;
+    }
+    B.wait -= dt;
+    if (B.wait > 0) return;
+    if (B.seg >= B.path.length - 1) {
+      // reached its target: bursts and floods the organ with what's left of it
+      const n = N[B.at], amt = Math.min(K, B.hp*0.6);
+      n.V += amt; n.src.boss = (n.src.boss || 0) + amt;
+      G.boss = null; G.bossDone = true;
+      sfx('land'); shake(18); flash('255,45,85', 0.4);
+      ring(NODES[B.at].x, NODES[B.at].y, '255,45,85', 180);
+      banner('The boss got through!', `It burst inside the ${NODES[B.at].name}. Get cells there now.`, 'out');
+      return;
+    }
+    B.at = null;
+  }
+  const a = B.path[B.seg], b = B.path[B.seg + 1];
+  B.prog += BOSS_SPEED*dt/elen(a, b);
+  if (B.prog >= 1) {
+    B.seg++; B.prog = 0; B.at = b;
+    B.wait = B.seg >= B.path.length - 1 ? BOSS_STOP - 1 : BOSS_STOP;
+  }
+}
+const bossPos = B => {
+  if (B.at) return NODES[B.at];
+  const a = NODES[B.path[B.seg]], b = NODES[B.path[B.seg + 1]];
+  return {x:a.x + (b.x - a.x)*B.prog, y:a.y + (b.y - a.y)*B.prog};
+};
 
 function step(dt) {
   const d = G.d, N = G.nodes;
   G.t += dt;
-  if (revealed() && G.revealedWave < G.wave) {
-    G.revealedWave = G.wave;
-    const hit = G.plan[G.wave].hit;
-    if (!hidden()) {
-      if (hit.length > 1) banner('Split wave!', `Wave ${G.wave + 1} hits both the ${NODES[hit[0]].name} and the ${NODES[hit[1]].name} in ${REVEAL} seconds.`);
-      else log(`Wave ${G.wave + 1} is going for the ${NODES[hit[0]].name}!`);
-    }
-  }
-  if (G.wave < d.waves && G.t >= G.nextWave) launchWave();
+  if (G.out <= d.outbreaks && G.t >= G.nextOut) G.out < d.outbreaks ? outbreak() : launchBoss();
+  if (G.later && G.t >= G.later.at) { banner(G.later.t, G.later.p); G.later = null; }
 
   // Energy refills slower when the body is hurt
-  const regen = 5*(0.4 + 0.6*avgHp()/100)*(d.drainsEnergy && N.gut.V > 5 ? 0.5 : 1);
+  const regen = 7*(0.4 + 0.6*avgHp()/100);
   G.energy = Math.min(150, G.energy + regen*dt);
   if (G.fever) {
     G.energy -= 3*dt;
@@ -492,31 +780,37 @@ function step(dt) {
   for (const u of G.units) {
     if (u.dead) continue;
     u.age += dt;
-    if (d.eats === u.type && u.node && N[u.node].V > 5) u.age += 2*dt;
     if (u.age >= u.life) { u.dead = true; continue; }
     if (!u.node) {
       const a = u.path[u.seg], b = u.path[u.seg+1];
-      u.prog += UT[u.type].speed*(d.slowCells ? 0.7 : 1)*dt/elen(a,b);
+      u.prog += UT[u.type].speed*(active('heart') ? 2 : 1)*dt/elen(a,b);
       if (u.prog >= 1) {
         u.seg++; u.prog = 0;
         if (u.seg >= u.path.length-1) { u.node = b; u.path = null; }
+        else if (blockedEdge(b, u.path[u.seg+1])) {
+          // the road ahead got cut: find another way
+          const p = findPath(b, u.path[u.path.length-1]);
+          if (p) { u.path = p; u.seg = 0; } else { u.node = b; u.path = null; }
+        }
       }
     }
   }
   G.units = G.units.filter(u => !u.dead);
 
-  const anyVirus = totalV() > 0;
-  const at = {}; for (const k in N) at[k] = [];
+  const at = {}, killAt = {}; for (const k in N) at[k] = [];
   for (const u of G.units) if (u.node) at[u.node].push(u);
 
   for (const k in N) {
     const n = N[k], tro = d.tropism[k] || 0;
     let kill = 0;
-    for (const u of at[k]) kill += UT[u.type].kill;
+    for (const u of at[k]) kill += UT[u.type].kill*(G.resist === u.type ? 0.2 : 1);
+    if (active('liver')) kill += k === 'liver' ? 5 : ADJ.liver.includes(k) ? 3 : 0;
     if (G.fever) kill *= 1.3;
+    killAt[k] = kill;
     let g = 0;
     if (n.V > 0) {
-      g = tro > 0 ? d.r*tro*n.V*(1 - n.V/K) : -0.1*n.V;
+      // once the boss is gone the virus can't grow any more, so the mop-up is quick
+      g = G.bossDone ? -0.05*n.V : tro > 0 ? d.r*tro*n.V*(1 - n.V/K) : -0.1*n.V;
       if (G.fever && g > 0) g *= 0.7;
     }
     const eff = n.V > 0 ? kill*Math.min(1, 0.3 + n.V/30) : 0;
@@ -528,44 +822,86 @@ function step(dt) {
       G.stats.killed += killed;
       if (G.memory < 1) {
         G.memory = Math.min(1, G.memory + killed/MEMORY_NEEDED);
-        if (G.memory >= 1) banner('Killer T cells unlocked', 'Your immune system has learned this virus. Press 3 to build Killer T cells.');
+        if (G.memory >= 1) { sfx('unlock'); banner('Killer T cells unlocked', 'Your immune system has learned this virus. Press 3 to build Killer T cells.'); }
       }
+      const now = performance.now();
+      if (now - lastPop > 90 && Math.random() < killed*3) { lastPop = now; sfx('pop'); }
       if (Math.random() < killed*1.5 && G.sparks.length < 300) {
         const a = Math.random()*6.28, r = 8 + Math.random()*22;
         G.sparks.push({x:NODES[k].x + Math.cos(a)*r, y:NODES[k].y + Math.sin(a)*r, life:0.45, max:0.45});
       }
     }
 
-    let dmg = d.vir*(n.V/K)*3;
+    if (n.V > 0) n.peak = Math.max(n.peak, n.V);
+    else {
+      if (before > 0 && eff > 0 && n.peak >= 15) wipe(k, n.peak);
+      n.peak = 0;
+    }
+
+    let dmg = d.vir*(n.V/K)*2.5*(d.bleed || 1);
     if (G.fever) dmg += 0.15;
     n.hp -= dmg*dt;
-    if (n.V === 0 && !(d.noHeal && anyVirus)) n.hp += 0.4*dt;
+    if (n.V === 0) n.hp += 0.4*dt;
     n.hp = Math.max(0, Math.min(100, n.hp));
 
     // spread to neighbouring organs
-    if (n.V > 10) {
-      for (const nb of ADJ[k]) {
+    if (n.V > 10 && !G.bossDone) {
+      // airborne viruses can reach any organ, flying straight across the body
+      for (const nb of d.airborne ? Object.keys(d.tropism) : ADJ[k]) {
         const tn = d.tropism[nb] || 0;
-        if (tn <= 0 || (d.seeksBrain && HOPS_TO_BRAIN[nb] >= HOPS_TO_BRAIN[k])) continue;
+        if (nb === k || tn <= 0 || (d.seeksBrain && HOPS_TO_BRAIN[nb] >= HOPS_TO_BRAIN[k])) continue;
         n.seed[nb] = (n.seed[nb] || 0) + d.spread*(n.V/K)*tn*0.5*dt;
-        if (n.seed[nb] >= 1) { n.seed[nb] -= 1; G.virions.push({from:k, to:nb, prog:0, amt:4}); }
+        if (n.seed[nb] < 1) continue;
+        n.seed[nb] -= 1;
+        if (d.airborne) G.virions.push({x0:NODES[k].x, y0:NODES[k].y, to:nb, prog:0, amt:4, wave:true, src:k, air:true});
+        else G.virions.push({from:k, to:nb, prog:0, amt:4});
       }
     }
   }
 
   // virions in flight
   for (const v of G.virions) {
-    if (v.wave) v.prog += dt*0.9;
+    if (v.wave) v.prog += dt*FLIGHT;
     else v.prog += 80*dt/elen(v.from, v.to);
-    if (v.prog >= 1) { N[v.to].V += v.amt; v.done = true; }
+    if (v.prog >= 1) {
+      v.done = true;
+      if (v.first && !hidden()) {
+        const P = NODES[v.to];
+        if (active('skin')) { sfx('block'); ring(P.x, P.y, '94,224,255', 110); float(P.x, P.y - 30, 'BLOCKED!', '#5ee0ff', true); }
+        else { sfx('land'); shake(9); flash('255,45,85', 0.18); ring(P.x, P.y, '255,45,85', 130); }
+      } else if (v.first && !active('skin')) { sfx('land'); shake(6); }
+      if (active('skin')) continue;  // Seal: nothing gets in
+      const s = v.src || v.from;
+      N[v.to].V += v.amt; N[v.to].src[s] = (N[v.to].src[s] || 0) + v.amt;
+    }
   }
   G.virions = G.virions.filter(v => !v.done);
+  stepBubbles(dt);
+  stepTraits(dt);
+  for (const f of G.floats) { f.life -= dt; f.y -= 22*dt; }
+  for (const r of G.rings) r.life -= dt;
+  G.floats = G.floats.filter(f => f.life > 0);
+  G.rings = G.rings.filter(r => r.life > 0);
   for (const s of G.sparks) s.life -= dt;
   G.sparks = G.sparks.filter(s => s.life > 0);
+  if (G.boss) stepBoss(dt, killAt);
 
-  for (const k of VITAL) if (N[k].hp <= 0) return endGame(false, `The ${NODES[k].name} failed.`);
-  if (avgHp() < 30) return endGame(false, 'The whole body is too weak to go on.');
-  if (G.wave >= d.waves && totalV() === 0 && G.virions.length === 0) return endGame(true, `You survived all ${d.waves} waves of ${d.name}.`);
+  for (const k of VITAL) if (N[k].hp <= 0) return endGame(false, `The ${NODES[k].name} failed. ${blame(k)}`);
+  if (avgHp() < LOSE_HP) {
+    const worst = Object.keys(N).reduce((a, b) => N[a].hp <= N[b].hp ? a : b);
+    return endGame(false, `The whole body got too weak. The ${NODES[worst].name} was hit hardest. ${blame(worst)}`);
+  }
+  if (G.bossDone && totalV() === 0 && G.virions.length === 0) return endGame(true, `You survived ${d.name}${G.bossKilled ? ' and destroyed the boss' : ''}.`);
+}
+
+// Says where most of an organ's virus came from, so a loss makes sense.
+function blame(k) {
+  const src = G.nodes[k].src, top = Object.keys(src).sort((a, b) => src[b] - src[a])[0];
+  if (!top) return '';
+  if (top === 'out') return `Most of its virus came from outbreaks landing right there.`;
+  if (top === 'boss') return `Most of its virus came from the boss.`;
+  if (top === 'relapse') return `It kept relapsing. Leave a cell guarding it after you clear it.`;
+  return `Most of its virus spread in from the ${NODES[top].name}. Cleaning up the ${NODES[top].name} sooner would have helped.`;
 }
 
 const starsFor = hp => hp >= 85 ? 3 : hp >= 60 ? 2 : 1;
@@ -573,6 +909,7 @@ const starStr = n => '★'.repeat(n) + '☆'.repeat(3 - n);
 function bestStars(did) { try { return +localStorage.getItem('pd-best-' + did) || 0; } catch (e) { return 0; } }
 function endGame(win, reason) {
   G.over = true; G.dispatch = null;
+  sfx(win ? 'win' : 'lose');
   if (win) {
     const st = starsFor(avgHp());
     reason += ` ${starStr(st)}` + (st < 3 ? ' (finish above 85% body health for 3 stars)' : '');
@@ -584,7 +921,9 @@ function endGame(win, reason) {
   $('#end-p').textContent = reason;
   $('#end-s').innerHTML = [
     ['Time', fmtTime(G.t)], ['Body health', Math.round(avgHp()) + '%'],
-    ['Waves', `${G.wave} / ${G.d.waves}`], ['Cells built', G.stats.built],
+    ['Outbreaks', `${Math.min(G.out, G.d.outbreaks)} / ${G.d.outbreaks}`],
+    ['Wipe-outs', G.stats.wipes + (G.stats.bestCombo > 1 ? ` (best combo ×${G.stats.bestCombo})` : '')],
+    ['Boss', G.bossKilled ? 'Destroyed' : G.bossDone ? 'Got through' : G.boss ? 'Still alive' : 'Not yet'],
   ].map(([a,b]) => `<div>${a}<b>${b}</b></div>`).join('');
   setTimeout(() => $('#endov').classList.remove('hide'), 700);
 }
@@ -648,7 +987,8 @@ function draw() {
   bg.addColorStop(0, '#08101f'); bg.addColorStop(1, '#020309');
   ctx.fillStyle = bg; ctx.fillRect(0, 0, cv.width, cv.height);
   if (!G) return;
-  ctx.setTransform(dpr*scale, 0, 0, dpr*scale, dpr*offX, dpr*offY);
+  const sh = G.shake, sx = (Math.random() - 0.5)*sh, sy = (Math.random() - 0.5)*sh;
+  ctx.setTransform(dpr*scale, 0, 0, dpr*scale, dpr*(offX + sx*scale), dpr*(offY + sy*scale));
   const T = G.t, N = G.nodes, hid = hidden();
 
   for (const c of BG_CELLS) {
@@ -673,6 +1013,17 @@ function draw() {
     }
   }
 
+  // vessels cut by paralysis
+  for (const [a,b] of EDGES) if (blockedEdge(a, b)) {
+    const A = NODES[a], B = NODES[b], mx = (A.x + B.x)/2, my = (A.y + B.y)/2;
+    ctx.strokeStyle = 'rgba(2,4,10,0.9)'; ctx.lineWidth = 10;
+    ctx.beginPath(); ctx.moveTo(A.x, A.y); ctx.lineTo(B.x, B.y); ctx.stroke();
+    ctx.strokeStyle = '#c9a0ff'; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.moveTo(mx-8, my-8); ctx.lineTo(mx+8, my+8); ctx.moveTo(mx+8, my-8); ctx.lineTo(mx-8, my+8); ctx.stroke();
+    ctx.font = '700 11px system-ui,sans-serif'; ctx.fillStyle = '#c9a0ff'; ctx.textAlign = 'center';
+    ctx.fillText(Math.ceil(G.blocked[a+'|'+b] - T), mx, my - 16);
+  }
+
   // rally line, drag line, dispatch line
   if (G.rally) {
     const A = NODES.marrow, B = NODES[G.rally];
@@ -686,25 +1037,40 @@ function draw() {
     ctx.beginPath(); ctx.moveTo(A.x, A.y); ctx.lineTo(tgt.x, tgt.y); ctx.stroke(); ctx.setLineDash([]);
   }
 
-  // incoming wave warning
-  if (G.wave < G.d.waves && !hid) {
-    const left = G.nextWave - T, w = G.plan[G.wave], rev = revealed();
-    ctx.font = '700 13px system-ui,sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    for (const k of rev ? w.hit : w.cands) {
-      const P = NODES[k];
-      if (rev) {
-        const pulse = 0.5 + 0.5*Math.sin(T*8);
-        ctx.strokeStyle = `rgba(255,45,85,${0.35 + 0.45*pulse})`; ctx.lineWidth = 2.5; ctx.setLineDash([10,6]);
-        ctx.beginPath(); ctx.arc(P.x, P.y, 62 + pulse*4, -T, -T + Math.PI*2); ctx.stroke(); ctx.setLineDash([]);
-        ctx.fillStyle = '#ff6b88';
-        ctx.fillText(`WAVE IN ${Math.ceil(left)}`, P.x, P.y - 74);
-      } else {
-        ctx.strokeStyle = 'rgba(255,179,71,0.45)'; ctx.lineWidth = 1.8; ctx.setLineDash([4,7]);
-        ctx.beginPath(); ctx.arc(P.x, P.y, 62, T*0.5, T*0.5 + Math.PI*2); ctx.stroke(); ctx.setLineDash([]);
-        ctx.fillStyle = 'rgba(255,179,71,0.85)';
-        ctx.fillText(`MAYBE · ${Math.ceil(left)}`, P.x, P.y - 74);
-      }
+  ctx.font = '700 13px system-ui,sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  // incoming outbreak: red ring until the virus lands
+  if (!hid) {
+    const inbound = {};
+    for (const v of G.virions) if (v.wave && !v.air) inbound[v.to] = Math.max(inbound[v.to] || 0, v.prog);
+    for (const k in inbound) {
+      const P = NODES[k], pulse = 0.5 + 0.5*Math.sin(T*8);
+      ctx.strokeStyle = `rgba(255,45,85,${0.35 + 0.45*pulse})`; ctx.lineWidth = 2.5; ctx.setLineDash([10,6]);
+      ctx.beginPath(); ctx.arc(P.x, P.y, 62 + pulse*4, -T, -T + Math.PI*2); ctx.stroke(); ctx.setLineDash([]);
+      ctx.fillStyle = '#ff6b88';
+      ctx.fillText(active('skin') ? 'SEALED' : 'INCOMING', P.x, P.y - 74);
     }
+  }
+
+  // boss route to its target
+  if (G.boss) {
+    const B = G.boss, p = bossPos(B), rest = B.path.slice(B.seg + 1), tgt = NODES[B.path[B.path.length - 1]];
+    ctx.strokeStyle = 'rgba(255,45,85,0.5)'; ctx.lineWidth = 3; ctx.setLineDash([2,8]);
+    ctx.beginPath(); ctx.moveTo(p.x, p.y);
+    for (const k of rest) ctx.lineTo(NODES[k].x, NODES[k].y);
+    ctx.stroke(); ctx.setLineDash([]);
+    ctx.fillStyle = '#ff6b88';
+    ctx.fillText('BOSS TARGET', tgt.x, tgt.y - 74);
+  }
+
+  // active abilities
+  ctx.font = '700 11px system-ui,sans-serif';
+  for (const k in ABIL) if (active(k)) {
+    const left = Math.ceil(G.until[k] - T);
+    const rings = k === 'skin' ? Object.keys(NODES) : k === 'liver' ? ['liver', ...ADJ.liver] : [k];
+    ctx.strokeStyle = k === 'liver' ? 'rgba(61,255,176,0.55)' : 'rgba(94,224,255,0.5)'; ctx.lineWidth = 2;
+    for (const o of rings) { ctx.beginPath(); ctx.arc(NODES[o].x, NODES[o].y, 44, 0, Math.PI*2); ctx.stroke(); }
+    ctx.fillStyle = 'rgba(94,224,255,0.95)';
+    ctx.fillText(`${ABIL[k].name.toUpperCase()} ${left}`, NODES[k].x, NODES[k].y - 60);
   }
 
   // organs
@@ -775,6 +1141,20 @@ function draw() {
     }
   }
   ctx.globalAlpha = 1;
+  for (const B of G.bubbles) {
+    const q = bubblePos(B), a = Math.min(1, B.life/1.5)*(B.life < 2 ? 0.6 + 0.4*Math.sin(T*20) : 1), r = 9 + Math.sin(T*5)*1.5;
+    ctx.fillStyle = `rgba(255,216,77,${0.25*a})`;
+    ctx.beginPath(); ctx.arc(q.x, q.y, r*2.2, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = `rgba(255,216,77,${0.9*a})`;
+    ctx.beginPath(); ctx.arc(q.x, q.y, r, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = `rgba(255,255,240,${a})`;
+    ctx.beginPath(); ctx.arc(q.x - 3, q.y - 3, 2.5, 0, Math.PI*2); ctx.fill();
+  }
+  for (const r of G.rings) {
+    const p = 1 - r.life/r.max;
+    ctx.strokeStyle = `rgba(${r.color},${(1 - p)*0.8})`; ctx.lineWidth = 4*(1 - p) + 1;
+    ctx.beginPath(); ctx.arc(r.x, r.y, 20 + r.size*p, 0, Math.PI*2); ctx.stroke();
+  }
   for (const s of G.sparks) {
     const p = s.life/s.max;
     ctx.fillStyle = `rgba(255,240,200,${p})`;
@@ -782,7 +1162,33 @@ function draw() {
   }
   ctx.globalCompositeOperation = 'source-over';
 
-  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  // boss: a spiky ring around the organ it's in, or a spiky ball on the move
+  if (G.boss) {
+    const B = G.boss, p = bossPos(B), r = B.at ? 40 : 15, spikes = B.at ? 22 : 10;
+    const hit = B.hitT && T - B.hitT < 0.1 && Math.sin(T*40) > 0;
+    ctx.fillStyle = hit ? 'rgba(255,240,240,0.35)' : B.at ? 'rgba(255,45,85,0.18)' : 'rgba(255,45,85,0.85)';
+    ctx.strokeStyle = '#ff2d55'; ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    for (let i = 0; i <= spikes*2; i++) {
+      const a = i/(spikes*2)*Math.PI*2 + T*0.8, rr = r + (i % 2 ? 6 : -2) + Math.sin(T*6 + i)*1.5;
+      i ? ctx.lineTo(p.x + Math.cos(a)*rr, p.y + Math.sin(a)*rr) : ctx.moveTo(p.x + Math.cos(a)*rr, p.y + Math.sin(a)*rr);
+    }
+    ctx.closePath(); ctx.fill(); ctx.stroke();
+    const bw = 70, by = p.y - (B.at ? 60 : 30);
+    ctx.fillStyle = 'rgba(2,4,10,0.8)'; ctx.fillRect(p.x - bw/2 - 1, by - 1, bw + 2, 8);
+    ctx.fillStyle = '#ff2d55'; ctx.fillRect(p.x - bw/2, by, bw*Math.max(0, B.hp/B.max), 6);
+  }
+
+  // ability key on each organ that has one: bright when ready
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.font = '700 11px system-ui,sans-serif';
+  for (const k in ABIL) {
+    const P = NODES[k], ready = !abilBlock(k);
+    ctx.fillStyle = ready ? 'rgba(94,224,255,0.9)' : 'rgba(40,55,80,0.9)';
+    ctx.beginPath(); ctx.arc(P.x + 26, P.y - 24, 9, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = ready ? '#04101a' : '#7d8bab';
+    ctx.fillText(ABIL[k].key.toUpperCase(), P.x + 26, P.y - 23.5);
+  }
+
   for (const k in NODES) {
     const P = NODES[k], n = N[k];
     ctx.font = '600 13px system-ui,sans-serif';
@@ -797,6 +1203,36 @@ function draw() {
       ctx.font = '11px system-ui,sans-serif'; ctx.fillStyle = 'rgba(94,224,255,0.8)';
       ctx.fillText('BUILD', P.x, P.y);
     }
+  }
+
+  // countdowns for the disease's signature move
+  ctx.font = '800 12px system-ui,sans-serif';
+  for (const [k, text] of traitTags()) {
+    const P = NODES[k], w = ctx.measureText(text).width + 12, pulse = 0.6 + 0.4*Math.sin(T*10);
+    ctx.fillStyle = `rgba(60,10,25,${0.85})`; ctx.fillRect(P.x - w/2, P.y + 58, w, 18);
+    ctx.fillStyle = `rgba(255,140,165,${pulse})`; ctx.fillText(text, P.x, P.y + 67.5);
+  }
+  if (G.resist) {
+    const t = UT[G.resist];
+    ctx.textAlign = 'left'; ctx.font = '700 13px system-ui,sans-serif';
+    ctx.fillStyle = 'rgba(40,15,60,0.85)'; ctx.fillRect(14, 14, 250, 26);
+    ctx.fillStyle = t.color; ctx.beginPath(); ctx.arc(30, 27, 6, 0, Math.PI*2); ctx.fill();
+    ctx.strokeStyle = '#ff2d55'; ctx.lineWidth = 2.5;
+    ctx.beginPath(); ctx.moveTo(23, 34); ctx.lineTo(37, 20); ctx.stroke();
+    ctx.fillStyle = '#e6d0ff'; ctx.fillText(`Resists ${UNIT_NAMES[G.resist]}`, 44, 27.5);
+    ctx.textAlign = 'center';
+  }
+  for (const f of G.floats) {
+    const a = Math.min(1, f.life/0.5);
+    ctx.font = `800 ${f.big ? 18 : 14}px system-ui,sans-serif`;
+    ctx.lineWidth = 4; ctx.strokeStyle = `rgba(2,4,10,${0.8*a})`;
+    ctx.globalAlpha = a; ctx.strokeText(f.text, f.x, f.y);
+    ctx.fillStyle = f.color; ctx.fillText(f.text, f.x, f.y);
+    ctx.globalAlpha = 1;
+  }
+  if (G.flash) {
+    ctx.setTransform(1,0,0,1,0,0);
+    ctx.fillStyle = `rgba(${G.flash.color},${G.flash.a})`; ctx.fillRect(0, 0, cv.width, cv.height);
   }
 
   if (G.fever) {
@@ -817,6 +1253,10 @@ function panelSig() {
   return [G.selected, JSON.stringify(cnt), G.rally, !!G.dispatch].join('|');
 }
 
+const abilBtn = k => `<button class="bbtn" data-act="abil" data-node="${k}" title="${ABIL[k].desc}">
+  <span class="k">${ABIL[k].key.toUpperCase()}</span>
+  <span class="nm">${ABIL[k].name} <span style="color:var(--dim)">· ${NODES[k].name}</span><small id="ab-${k}">${ABIL[k].desc}</small></span><span class="cost">${ABIL[k].cost}</span></button>`;
+
 function renderPanel() {
   const P = $('#pbody');
   if (!G) { P.innerHTML = ''; return; }
@@ -829,8 +1269,10 @@ function renderPanel() {
       ${Object.keys(NODES).map(k => `<div class="orow" data-act="select" data-node="${k}">
         <span>${NODES[k].name}${NODES[k].vital ? ' <span class="tag">vital</span>' : ''}</span>
         <div class="bar"><i id="o-h-${k}"></i></div><b id="o-v-${k}"></b></div>`).join('')}
+      <h3>Organ abilities</h3>
+      ${Object.keys(ABIL).map(abilBtn).join('')}
       <h3>Quick start</h3>
-      <p>1. Click <b>Bone Marrow</b> and build cells (or press 1–3).<br>2. <b>Drag</b> from the Bone Marrow to an organ to send them.<br>3. Orange = might be hit. Red = will be hit in 7s.</p>`;
+      <p>1. Click <b>Bone Marrow</b> and build cells (or press 1–3).<br>2. <b>Drag</b> from the Bone Marrow to an organ to send them.<br>3. When an outbreak hits, rush cells there. Q W E R use organ abilities.</p>`;
     return;
   }
   const k = G.selected, P0 = NODES[k];
@@ -840,6 +1282,7 @@ function renderPanel() {
   let h = `<h2>${P0.name}${P0.vital ? '<span class="tag">vital</span>' : ''}</h2>
     <div class="stat"><span>Health</span><div class="bar"><i id="p-hp"></i></div><b id="p-hpv"></b></div>
     <div class="stat"><span>Virus</span><div class="bar"><i id="p-v" style="background:var(--virus)"></i></div><b id="p-vv"></b></div>
+    ${ABIL[k] ? '<h3>Ability</h3>' + abilBtn(k) : ''}
     <h3>Cells here</h3>`;
   if (!types.length) h += `<p>None.</p>`;
   else {
@@ -881,12 +1324,18 @@ function updateLive() {
   setBar('t-e', G.energy/150); setText('t-ev', Math.floor(G.energy));
   setBar('t-m', G.memory); setText('t-mv', ktUnlocked() ? 'Ready' : Math.floor(G.memory*100) + '%');
   setBar('t-h', avg/100, hpColor(avg)); setText('t-hv', Math.round(avg) + '%');
-  if (G.wave < G.d.waves) {
-    const left = Math.max(0, Math.ceil(G.nextWave - G.t));
-    const w = G.plan[G.wave];
-    const tgt = hid ? '???' : revealed() ? names(w.hit).toUpperCase() : w.cands.map(k => NODES[k].name).join(' or ') + '?';
-    setText('t-w', `${G.wave}/${G.d.waves} · next in ${left}s → ${tgt}`);
-  } else setText('t-w', `${G.wave}/${G.d.waves} · clear the rest!`);
+  const no = G.d.outbreaks;
+  if (G.out < no) setText('t-w', `${G.out}/${no} · then the boss`);
+  else if (G.out === no) setText('t-w', `${no}/${no} · boss coming…`);
+  else if (G.boss) setText('t-w', `Boss → ${NODES[G.boss.path[G.boss.path.length - 1]].name}`);
+  else setText('t-w', 'Clear the rest!');
+  for (const k in ABIL) {
+    const btn = document.querySelector(`[data-act="abil"][data-node="${k}"]`);
+    if (!btn) continue;
+    const why = abilBlock(k);
+    btn.disabled = !!why;
+    setText('ab-' + k, active(k) ? `Active: ${Math.ceil(G.until[k] - G.t)}s left` : why || ABIL[k].desc);
+  }
   $('#b-fever').classList.toggle('on', G.fever);
   $('#b-fever').textContent = G.fever ? 'Fever ON' : 'Fever';
   $('#b-pause').textContent = G.paused ? 'Resume' : 'Pause';
@@ -933,6 +1382,7 @@ $('#pbody').addEventListener('click', e => {
   const act = b.dataset.act, k = G.selected;
   if (act === 'select') G.selected = b.dataset.node;
   else if (act === 'build') build(b.dataset.type);
+  else if (act === 'abil') useAbil(b.dataset.node);
   else if (act === 'rally') G.dispatch = {rally:true, from:'marrow'};
   else if (act === 'clearrally') G.rally = null;
   else if (act === 'sendall' || act === 'send') {
@@ -953,6 +1403,7 @@ function sendAll(from, to) {
 cv.addEventListener('pointerdown', e => {
   if (!G || G.over || e.button === 2) return;
   mouse = toLogical(e);
+  if (!G.dispatch && popBubble(mouse)) { drag = null; return; }
   const k = nodeAt(mouse.x, mouse.y);
   drag = k ? {from:k, moved:false, x:mouse.x, y:mouse.y} : null;
   cv.setPointerCapture(e.pointerId);
@@ -997,9 +1448,11 @@ window.addEventListener('keydown', e => {
   if (e.key === 'Escape') { if (G.dispatch) G.dispatch = null; else G.selected = null; return; }
   if (e.key === ' ') { e.preventDefault(); G.paused = !G.paused; return; }
   if (e.key === 'f' || e.key === 'F') { toggleFever(); return; }
+  if (e.key === 'm' || e.key === 'M') { toggleMute(); return; }
   if (e.key === 'h' || e.key === '?') { openHelp(); return; }
+  for (const k in ABIL) if (ABIL[k].key === e.key.toLowerCase()) { useAbil(k); return; }
   for (const t in UT) if (UT[t].key === e.key) {
-    if (!build(t)) { const why = buildBlock(t); if (why) log(`${UT[t].name}: ${why}.`); }
+    if (!build(t)) { const why = buildBlock(t); if (why) { log(`${UT[t].name}: ${why}.`); sfx('deny'); } }
     return;
   }
 });
@@ -1008,6 +1461,8 @@ $('#b-fever').onclick = toggleFever;
 $('#b-pause').onclick = () => { if (G) G.paused = !G.paused; };
 $('#b-speed').onclick = () => { if (G) G.speed = G.speed === 1 ? 2 : G.speed === 2 ? 3 : 1; };
 $('#b-help').onclick = openHelp;
+$('#b-mute').onclick = toggleMute;
+$('#b-mute').textContent = muted ? 'Muted' : 'Sound';
 $('#m-help').onclick = openHelp;
 $('#h-close').onclick = closeHelp;
 $('#b-menu').onclick = showMenu;
@@ -1042,7 +1497,8 @@ function renderCards() {
 }
 renderCards();
 $('#cards').addEventListener('click', e => { const c = e.target.closest('.card'); if (c) newGame(c.dataset.d); });
-$('#helpUnits').innerHTML = Object.values(UT).map(t => `<div class="u"><i class="dot" style="background:${t.color};color:${t.color}"></i><div><b>${t.name}</b> <span class="cost">${t.cost} Energy</span> · <span style="color:var(--dim)">${t.desc}</span></div></div>`).join('');
+$('#helpAbil').innerHTML = Object.entries(ABIL).map(([k, a]) => `<div class="u"><span class="k" style="font-size:11px;color:var(--dim);border:1px solid var(--line);border-radius:3px;padding:0 5px;height:fit-content">${a.key.toUpperCase()}</span><div><b>${a.name}</b> (${NODES[k].name}) <span class="cost">${a.cost} Energy</span> · <span style="color:var(--dim)">${a.desc}</span></div></div>`).join('');
+$('#helpUnits').innerHTML =Object.values(UT).map(t => `<div class="u"><i class="dot" style="background:${t.color};color:${t.color}"></i><div><b>${t.name}</b> <span class="cost">${t.cost} Energy</span> · <span style="color:var(--dim)">${t.desc}</span></div></div>`).join('');
 
 // ---------- Loop ----------
 let last = performance.now(), liveT = 0;
@@ -1052,6 +1508,10 @@ function frame(now) {
   if (G && !G.paused && !G.over) {
     let rem = real*G.speed;
     while (rem > 0) { const s = Math.min(0.05, rem); step(s); rem -= s; if (G.over) break; }
+  }
+  if (G) {
+    G.shake = Math.max(0, G.shake - real*40);
+    if (G.flash && (G.flash.a -= real*1.2) <= 0) G.flash = null;
   }
   draw();
   liveT += real;
